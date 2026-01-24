@@ -1,0 +1,3 @@
+{
+  "extends": "@mana-vault/config/tsconfig.base.json"
+}

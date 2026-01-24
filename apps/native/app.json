@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "scheme": "mana-vault",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "bundler": "metro"
+    },
+    "name": "mana-vault",
+    "slug": "mana-vault",
+    "plugins": ["expo-font"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
