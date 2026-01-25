@@ -16,7 +16,8 @@ import { Route as appAuthedRouteRouteImport } from './routes/(app)/_authed/route
 import { Route as appAuthedSearchRouteImport } from './routes/(app)/_authed/search'
 import { Route as appAuthedListsRouteImport } from './routes/(app)/_authed/lists'
 import { Route as appAuthedDecksRouteImport } from './routes/(app)/_authed/decks'
-import { Route as appAuthedCardsRouteImport } from './routes/(app)/_authed/cards'
+import { Route as appAuthedCardsIndexRouteImport } from './routes/(app)/_authed/cards/index'
+import { Route as appAuthedCardsCollectionIdRouteImport } from './routes/(app)/_authed/cards/$collectionId'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -52,29 +53,37 @@ const appAuthedDecksRoute = appAuthedDecksRouteImport.update({
   path: '/decks',
   getParentRoute: () => appAuthedRouteRoute,
 } as any)
-const appAuthedCardsRoute = appAuthedCardsRouteImport.update({
-  id: '/cards',
-  path: '/cards',
+const appAuthedCardsIndexRoute = appAuthedCardsIndexRouteImport.update({
+  id: '/cards/',
+  path: '/cards/',
   getParentRoute: () => appAuthedRouteRoute,
 } as any)
+const appAuthedCardsCollectionIdRoute =
+  appAuthedCardsCollectionIdRouteImport.update({
+    id: '/cards/$collectionId',
+    path: '/cards/$collectionId',
+    getParentRoute: () => appAuthedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
-  '/cards': typeof appAuthedCardsRoute
   '/decks': typeof appAuthedDecksRoute
   '/lists': typeof appAuthedListsRoute
   '/search': typeof appAuthedSearchRoute
+  '/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
+  '/cards/': typeof appAuthedCardsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
-  '/cards': typeof appAuthedCardsRoute
   '/decks': typeof appAuthedDecksRoute
   '/lists': typeof appAuthedListsRoute
   '/search': typeof appAuthedSearchRoute
+  '/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
+  '/cards': typeof appAuthedCardsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -82,10 +91,11 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/(app)/_authed': typeof appAuthedRouteRouteWithChildren
-  '/(app)/_authed/cards': typeof appAuthedCardsRoute
   '/(app)/_authed/decks': typeof appAuthedDecksRoute
   '/(app)/_authed/lists': typeof appAuthedListsRoute
   '/(app)/_authed/search': typeof appAuthedSearchRoute
+  '/(app)/_authed/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
+  '/(app)/_authed/cards/': typeof appAuthedCardsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -93,22 +103,32 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/success'
-    | '/cards'
     | '/decks'
     | '/lists'
     | '/search'
+    | '/cards/$collectionId'
+    | '/cards/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/success' | '/cards' | '/decks' | '/lists' | '/search'
+  to:
+    | '/'
+    | '/login'
+    | '/success'
+    | '/decks'
+    | '/lists'
+    | '/search'
+    | '/cards/$collectionId'
+    | '/cards'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/success'
     | '/(app)/_authed'
-    | '/(app)/_authed/cards'
     | '/(app)/_authed/decks'
     | '/(app)/_authed/lists'
     | '/(app)/_authed/search'
+    | '/(app)/_authed/cards/$collectionId'
+    | '/(app)/_authed/cards/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -169,28 +189,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appAuthedDecksRouteImport
       parentRoute: typeof appAuthedRouteRoute
     }
-    '/(app)/_authed/cards': {
-      id: '/(app)/_authed/cards'
+    '/(app)/_authed/cards/': {
+      id: '/(app)/_authed/cards/'
       path: '/cards'
-      fullPath: '/cards'
-      preLoaderRoute: typeof appAuthedCardsRouteImport
+      fullPath: '/cards/'
+      preLoaderRoute: typeof appAuthedCardsIndexRouteImport
+      parentRoute: typeof appAuthedRouteRoute
+    }
+    '/(app)/_authed/cards/$collectionId': {
+      id: '/(app)/_authed/cards/$collectionId'
+      path: '/cards/$collectionId'
+      fullPath: '/cards/$collectionId'
+      preLoaderRoute: typeof appAuthedCardsCollectionIdRouteImport
       parentRoute: typeof appAuthedRouteRoute
     }
   }
 }
 
 interface appAuthedRouteRouteChildren {
-  appAuthedCardsRoute: typeof appAuthedCardsRoute
   appAuthedDecksRoute: typeof appAuthedDecksRoute
   appAuthedListsRoute: typeof appAuthedListsRoute
   appAuthedSearchRoute: typeof appAuthedSearchRoute
+  appAuthedCardsCollectionIdRoute: typeof appAuthedCardsCollectionIdRoute
+  appAuthedCardsIndexRoute: typeof appAuthedCardsIndexRoute
 }
 
 const appAuthedRouteRouteChildren: appAuthedRouteRouteChildren = {
-  appAuthedCardsRoute: appAuthedCardsRoute,
   appAuthedDecksRoute: appAuthedDecksRoute,
   appAuthedListsRoute: appAuthedListsRoute,
   appAuthedSearchRoute: appAuthedSearchRoute,
+  appAuthedCardsCollectionIdRoute: appAuthedCardsCollectionIdRoute,
+  appAuthedCardsIndexRoute: appAuthedCardsIndexRoute,
 }
 
 const appAuthedRouteRouteWithChildren = appAuthedRouteRoute._addFileChildren(

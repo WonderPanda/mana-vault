@@ -1,12 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ScanSearch } from "lucide-react";
 
-import {
-  PageContent,
-  PageHeader,
-  PageLayout,
-  PageTitle,
-} from "@/components/page-layout";
+import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,9 +31,7 @@ function SearchPage() {
       <PageContent className="flex flex-col items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
           <ScanSearch className="h-16 w-16 text-muted-foreground/50" />
-          <p className="text-muted-foreground">
-            Search for any card printed in Magic history.
-          </p>
+          <p className="text-muted-foreground">Search for any card printed in Magic history.</p>
         </div>
       </PageContent>
     </PageLayout>
