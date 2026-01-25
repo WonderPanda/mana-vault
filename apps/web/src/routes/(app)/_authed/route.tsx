@@ -1,4 +1,11 @@
-import { Link, Outlet, createFileRoute, redirect, useMatchRoute } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  linkOptions,
+  redirect,
+  useMatchRoute,
+} from "@tanstack/react-router";
 import { ChartColumnBig, Layers, ListChecks, Search, User } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
@@ -6,24 +13,45 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/(app)/_authed")({
   component: AuthedLayout,
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
+  beforeLoad: async ({ context: { queryClient } }) => {
+    // First fetch session (always fresh on first load, then cached until expiry)
+    const session = await queryClient.fetchQuery({
+      queryKey: ["session"],
+      queryFn: () => authClient.getSession(),
+      staleTime: (query) => {
+        const data = query.state.data;
+        if (!data?.data?.session?.expiresAt) return 0;
+        // Cache until 10 seconds before session expires
+        const bufferMs = 10 * 1000;
+        return (
+          new Date(data.data.session.expiresAt).getTime() -
+          Date.now() -
+          bufferMs
+        );
+      },
+    });
+
     if (!session.data) {
       throw redirect({
         to: "/login",
       });
     }
-    const { data: customerState } = await authClient.customer.state();
+
+    const customerState = await queryClient.ensureQueryData({
+      queryKey: ["customerState"],
+      queryFn: () => authClient.customer.state().then((res) => res.data),
+    });
+
     return { session: session.data, customerState };
   },
 });
 
-const navItems = [
+const navItems = linkOptions([
   { to: "/cards", label: "Collection", icon: ChartColumnBig },
   { to: "/search", label: "Search", icon: Search },
   { to: "/decks", label: "Decks", icon: Layers },
   { to: "/lists", label: "Lists", icon: ListChecks },
-] as const;
+]);
 
 function AuthedLayout() {
   const { session } = Route.useRouteContext();
@@ -73,8 +101,12 @@ function AuthedLayout() {
               <User className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1 truncate">
-              <div className="truncate text-sm font-medium">{session.user.name}</div>
-              <div className="truncate text-xs text-muted-foreground">{session.user.email}</div>
+              <div className="truncate text-sm font-medium">
+                {session.user.name}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {session.user.email}
+              </div>
             </div>
           </div>
         </div>
