@@ -14,9 +14,10 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as appAuthedRouteRouteImport } from './routes/(app)/_authed/route'
 import { Route as appAuthedSearchRouteImport } from './routes/(app)/_authed/search'
-import { Route as appAuthedListsRouteImport } from './routes/(app)/_authed/lists'
 import { Route as appAuthedDecksRouteImport } from './routes/(app)/_authed/decks'
+import { Route as appAuthedListsIndexRouteImport } from './routes/(app)/_authed/lists/index'
 import { Route as appAuthedCardsIndexRouteImport } from './routes/(app)/_authed/cards/index'
+import { Route as appAuthedListsListIdRouteImport } from './routes/(app)/_authed/lists/$listId'
 import { Route as appAuthedCardsCollectionIdRouteImport } from './routes/(app)/_authed/cards/$collectionId'
 
 const SuccessRoute = SuccessRouteImport.update({
@@ -43,19 +44,24 @@ const appAuthedSearchRoute = appAuthedSearchRouteImport.update({
   path: '/search',
   getParentRoute: () => appAuthedRouteRoute,
 } as any)
-const appAuthedListsRoute = appAuthedListsRouteImport.update({
-  id: '/lists',
-  path: '/lists',
-  getParentRoute: () => appAuthedRouteRoute,
-} as any)
 const appAuthedDecksRoute = appAuthedDecksRouteImport.update({
   id: '/decks',
   path: '/decks',
   getParentRoute: () => appAuthedRouteRoute,
 } as any)
+const appAuthedListsIndexRoute = appAuthedListsIndexRouteImport.update({
+  id: '/lists/',
+  path: '/lists/',
+  getParentRoute: () => appAuthedRouteRoute,
+} as any)
 const appAuthedCardsIndexRoute = appAuthedCardsIndexRouteImport.update({
   id: '/cards/',
   path: '/cards/',
+  getParentRoute: () => appAuthedRouteRoute,
+} as any)
+const appAuthedListsListIdRoute = appAuthedListsListIdRouteImport.update({
+  id: '/lists/$listId',
+  path: '/lists/$listId',
   getParentRoute: () => appAuthedRouteRoute,
 } as any)
 const appAuthedCardsCollectionIdRoute =
@@ -70,20 +76,22 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/decks': typeof appAuthedDecksRoute
-  '/lists': typeof appAuthedListsRoute
   '/search': typeof appAuthedSearchRoute
   '/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
+  '/lists/$listId': typeof appAuthedListsListIdRoute
   '/cards/': typeof appAuthedCardsIndexRoute
+  '/lists/': typeof appAuthedListsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/decks': typeof appAuthedDecksRoute
-  '/lists': typeof appAuthedListsRoute
   '/search': typeof appAuthedSearchRoute
   '/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
+  '/lists/$listId': typeof appAuthedListsListIdRoute
   '/cards': typeof appAuthedCardsIndexRoute
+  '/lists': typeof appAuthedListsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -92,10 +100,11 @@ export interface FileRoutesById {
   '/success': typeof SuccessRoute
   '/(app)/_authed': typeof appAuthedRouteRouteWithChildren
   '/(app)/_authed/decks': typeof appAuthedDecksRoute
-  '/(app)/_authed/lists': typeof appAuthedListsRoute
   '/(app)/_authed/search': typeof appAuthedSearchRoute
   '/(app)/_authed/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
+  '/(app)/_authed/lists/$listId': typeof appAuthedListsListIdRoute
   '/(app)/_authed/cards/': typeof appAuthedCardsIndexRoute
+  '/(app)/_authed/lists/': typeof appAuthedListsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -104,20 +113,22 @@ export interface FileRouteTypes {
     | '/login'
     | '/success'
     | '/decks'
-    | '/lists'
     | '/search'
     | '/cards/$collectionId'
+    | '/lists/$listId'
     | '/cards/'
+    | '/lists/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/success'
     | '/decks'
-    | '/lists'
     | '/search'
     | '/cards/$collectionId'
+    | '/lists/$listId'
     | '/cards'
+    | '/lists'
   id:
     | '__root__'
     | '/'
@@ -125,10 +136,11 @@ export interface FileRouteTypes {
     | '/success'
     | '/(app)/_authed'
     | '/(app)/_authed/decks'
-    | '/(app)/_authed/lists'
     | '/(app)/_authed/search'
     | '/(app)/_authed/cards/$collectionId'
+    | '/(app)/_authed/lists/$listId'
     | '/(app)/_authed/cards/'
+    | '/(app)/_authed/lists/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -175,13 +187,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appAuthedSearchRouteImport
       parentRoute: typeof appAuthedRouteRoute
     }
-    '/(app)/_authed/lists': {
-      id: '/(app)/_authed/lists'
-      path: '/lists'
-      fullPath: '/lists'
-      preLoaderRoute: typeof appAuthedListsRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
     '/(app)/_authed/decks': {
       id: '/(app)/_authed/decks'
       path: '/decks'
@@ -189,11 +194,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof appAuthedDecksRouteImport
       parentRoute: typeof appAuthedRouteRoute
     }
+    '/(app)/_authed/lists/': {
+      id: '/(app)/_authed/lists/'
+      path: '/lists'
+      fullPath: '/lists/'
+      preLoaderRoute: typeof appAuthedListsIndexRouteImport
+      parentRoute: typeof appAuthedRouteRoute
+    }
     '/(app)/_authed/cards/': {
       id: '/(app)/_authed/cards/'
       path: '/cards'
       fullPath: '/cards/'
       preLoaderRoute: typeof appAuthedCardsIndexRouteImport
+      parentRoute: typeof appAuthedRouteRoute
+    }
+    '/(app)/_authed/lists/$listId': {
+      id: '/(app)/_authed/lists/$listId'
+      path: '/lists/$listId'
+      fullPath: '/lists/$listId'
+      preLoaderRoute: typeof appAuthedListsListIdRouteImport
       parentRoute: typeof appAuthedRouteRoute
     }
     '/(app)/_authed/cards/$collectionId': {
@@ -208,18 +227,20 @@ declare module '@tanstack/react-router' {
 
 interface appAuthedRouteRouteChildren {
   appAuthedDecksRoute: typeof appAuthedDecksRoute
-  appAuthedListsRoute: typeof appAuthedListsRoute
   appAuthedSearchRoute: typeof appAuthedSearchRoute
   appAuthedCardsCollectionIdRoute: typeof appAuthedCardsCollectionIdRoute
+  appAuthedListsListIdRoute: typeof appAuthedListsListIdRoute
   appAuthedCardsIndexRoute: typeof appAuthedCardsIndexRoute
+  appAuthedListsIndexRoute: typeof appAuthedListsIndexRoute
 }
 
 const appAuthedRouteRouteChildren: appAuthedRouteRouteChildren = {
   appAuthedDecksRoute: appAuthedDecksRoute,
-  appAuthedListsRoute: appAuthedListsRoute,
   appAuthedSearchRoute: appAuthedSearchRoute,
   appAuthedCardsCollectionIdRoute: appAuthedCardsCollectionIdRoute,
+  appAuthedListsListIdRoute: appAuthedListsListIdRoute,
   appAuthedCardsIndexRoute: appAuthedCardsIndexRoute,
+  appAuthedListsIndexRoute: appAuthedListsIndexRoute,
 }
 
 const appAuthedRouteRouteWithChildren = appAuthedRouteRoute._addFileChildren(
