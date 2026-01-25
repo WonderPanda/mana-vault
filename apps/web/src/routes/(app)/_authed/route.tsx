@@ -23,11 +23,7 @@ export const Route = createFileRoute("/(app)/_authed")({
         if (!data?.data?.session?.expiresAt) return 0;
         // Cache until 10 seconds before session expires
         const bufferMs = 10 * 1000;
-        return (
-          new Date(data.data.session.expiresAt).getTime() -
-          Date.now() -
-          bufferMs
-        );
+        return new Date(data.data.session.expiresAt).getTime() - Date.now() - bufferMs;
       },
     });
 
@@ -101,12 +97,8 @@ function AuthedLayout() {
               <User className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1 truncate">
-              <div className="truncate text-sm font-medium">
-                {session.user.name}
-              </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {session.user.email}
-              </div>
+              <div className="truncate text-sm font-medium">{session.user.name}</div>
+              <div className="truncate text-xs text-muted-foreground">{session.user.email}</div>
             </div>
           </div>
         </div>
