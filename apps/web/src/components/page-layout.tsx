@@ -38,5 +38,5 @@ export function PageTitle({
 }
 
 export function PageContent({ children, className }: PageContentProps) {
-  return <div className={cn("flex-1 overflow-auto p-2 md:p-4", className)}>{children}</div>;
+  return <div className={cn("flex-1 overflow-auto p-4 md:p-6", className)}>{children}</div>;
 }

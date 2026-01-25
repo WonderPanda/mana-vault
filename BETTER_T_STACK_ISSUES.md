@@ -36,3 +36,22 @@ The server env exports from `cloudflare:workers`, a virtual module only availabl
      }
    }
    ```
+
+---
+
+## 2. `oxfmt` format command doesn't format any files
+
+**Symptom:** Running `bun run format` with `oxfmt --write` produces no output and doesn't format any files.
+
+**Cause:** `oxfmt` requires an explicit path argument to know which files to format. Without a path, it silently does nothing.
+
+**Fix:** Add `.` (current directory) as the path argument:
+
+```json
+{
+  "scripts": {
+    "check": "oxlint && oxfmt --check .",
+    "format": "oxfmt --write ."
+  }
+}
+```
