@@ -61,24 +61,17 @@
       "indexes": {
         "card_price_scryfall_card_id_idx": {
           "name": "card_price_scryfall_card_id_idx",
-          "columns": [
-            "scryfall_card_id"
-          ],
+          "columns": ["scryfall_card_id"],
           "isUnique": false
         },
         "card_price_price_source_id_idx": {
           "name": "card_price_price_source_id_idx",
-          "columns": [
-            "price_source_id"
-          ],
+          "columns": ["price_source_id"],
           "isUnique": false
         },
         "card_price_card_source_unique": {
           "name": "card_price_card_source_unique",
-          "columns": [
-            "scryfall_card_id",
-            "price_source_id"
-          ],
+          "columns": ["scryfall_card_id", "price_source_id"],
           "isUnique": true
         }
       },
@@ -87,12 +80,8 @@
           "name": "card_price_scryfall_card_id_scryfall_card_id_fk",
           "tableFrom": "card_price",
           "tableTo": "scryfall_card",
-          "columnsFrom": [
-            "scryfall_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["scryfall_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -100,12 +89,8 @@
           "name": "card_price_price_source_id_price_source_id_fk",
           "tableFrom": "card_price",
           "tableTo": "price_source",
-          "columnsFrom": [
-            "price_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["price_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -218,32 +203,22 @@
       "indexes": {
         "collection_card_user_id_idx": {
           "name": "collection_card_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "collection_card_scryfall_card_id_idx": {
           "name": "collection_card_scryfall_card_id_idx",
-          "columns": [
-            "scryfall_card_id"
-          ],
+          "columns": ["scryfall_card_id"],
           "isUnique": false
         },
         "collection_card_user_scryfall_idx": {
           "name": "collection_card_user_scryfall_idx",
-          "columns": [
-            "user_id",
-            "scryfall_card_id"
-          ],
+          "columns": ["user_id", "scryfall_card_id"],
           "isUnique": false
         },
         "collection_card_user_status_idx": {
           "name": "collection_card_user_status_idx",
-          "columns": [
-            "user_id",
-            "status"
-          ],
+          "columns": ["user_id", "status"],
           "isUnique": false
         }
       },
@@ -252,12 +227,8 @@
           "name": "collection_card_user_id_user_id_fk",
           "tableFrom": "collection_card",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -265,12 +236,8 @@
           "name": "collection_card_scryfall_card_id_scryfall_card_id_fk",
           "tableFrom": "collection_card",
           "tableTo": "scryfall_card",
-          "columnsFrom": [
-            "scryfall_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["scryfall_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -322,30 +289,22 @@
       "indexes": {
         "collection_card_location_collection_card_id_unique": {
           "name": "collection_card_location_collection_card_id_unique",
-          "columns": [
-            "collection_card_id"
-          ],
+          "columns": ["collection_card_id"],
           "isUnique": true
         },
         "collection_card_location_card_idx": {
           "name": "collection_card_location_card_idx",
-          "columns": [
-            "collection_card_id"
-          ],
+          "columns": ["collection_card_id"],
           "isUnique": false
         },
         "collection_card_location_storage_idx": {
           "name": "collection_card_location_storage_idx",
-          "columns": [
-            "storage_container_id"
-          ],
+          "columns": ["storage_container_id"],
           "isUnique": false
         },
         "collection_card_location_deck_idx": {
           "name": "collection_card_location_deck_idx",
-          "columns": [
-            "deck_id"
-          ],
+          "columns": ["deck_id"],
           "isUnique": false
         }
       },
@@ -354,12 +313,8 @@
           "name": "collection_card_location_collection_card_id_collection_card_id_fk",
           "tableFrom": "collection_card_location",
           "tableTo": "collection_card",
-          "columnsFrom": [
-            "collection_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -367,12 +322,8 @@
           "name": "collection_card_location_storage_container_id_storage_container_id_fk",
           "tableFrom": "collection_card_location",
           "tableTo": "storage_container",
-          "columnsFrom": [
-            "storage_container_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["storage_container_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -380,12 +331,8 @@
           "name": "collection_card_location_deck_id_deck_id_fk",
           "tableFrom": "collection_card_location",
           "tableTo": "deck",
-          "columnsFrom": [
-            "deck_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -451,23 +398,17 @@
       "indexes": {
         "collection_card_location_history_card_idx": {
           "name": "collection_card_location_history_card_idx",
-          "columns": [
-            "collection_card_id"
-          ],
+          "columns": ["collection_card_id"],
           "isUnique": false
         },
         "collection_card_location_history_deck_idx": {
           "name": "collection_card_location_history_deck_idx",
-          "columns": [
-            "deck_id"
-          ],
+          "columns": ["deck_id"],
           "isUnique": false
         },
         "collection_card_location_history_list_idx": {
           "name": "collection_card_location_history_list_idx",
-          "columns": [
-            "virtual_list_id"
-          ],
+          "columns": ["virtual_list_id"],
           "isUnique": false
         }
       },
@@ -476,12 +417,8 @@
           "name": "collection_card_location_history_collection_card_id_collection_card_id_fk",
           "tableFrom": "collection_card_location_history",
           "tableTo": "collection_card",
-          "columnsFrom": [
-            "collection_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -489,12 +426,8 @@
           "name": "collection_card_location_history_storage_container_id_storage_container_id_fk",
           "tableFrom": "collection_card_location_history",
           "tableTo": "storage_container",
-          "columnsFrom": [
-            "storage_container_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["storage_container_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -502,12 +435,8 @@
           "name": "collection_card_location_history_deck_id_deck_id_fk",
           "tableFrom": "collection_card_location_history",
           "tableTo": "deck",
-          "columnsFrom": [
-            "deck_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -515,12 +444,8 @@
           "name": "collection_card_location_history_virtual_list_id_virtual_list_id_fk",
           "tableFrom": "collection_card_location_history",
           "tableTo": "virtual_list",
-          "columnsFrom": [
-            "virtual_list_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["virtual_list_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -558,10 +483,7 @@
       "indexes": {
         "collection_card_tag_pk": {
           "name": "collection_card_tag_pk",
-          "columns": [
-            "collection_card_id",
-            "tag_id"
-          ],
+          "columns": ["collection_card_id", "tag_id"],
           "isUnique": true
         }
       },
@@ -570,12 +492,8 @@
           "name": "collection_card_tag_collection_card_id_collection_card_id_fk",
           "tableFrom": "collection_card_tag",
           "tableTo": "collection_card",
-          "columnsFrom": [
-            "collection_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -583,12 +501,8 @@
           "name": "collection_card_tag_tag_id_tag_id_fk",
           "tableFrom": "collection_card_tag",
           "tableTo": "tag",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -694,25 +608,17 @@
       "indexes": {
         "deck_user_id_idx": {
           "name": "deck_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "deck_user_status_idx": {
           "name": "deck_user_status_idx",
-          "columns": [
-            "user_id",
-            "status"
-          ],
+          "columns": ["user_id", "status"],
           "isUnique": false
         },
         "deck_user_format_idx": {
           "name": "deck_user_format_idx",
-          "columns": [
-            "user_id",
-            "format"
-          ],
+          "columns": ["user_id", "format"],
           "isUnique": false
         }
       },
@@ -721,12 +627,8 @@
           "name": "deck_user_id_user_id_fk",
           "tableFrom": "deck",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -841,31 +743,22 @@
       "indexes": {
         "deck_card_deck_id_idx": {
           "name": "deck_card_deck_id_idx",
-          "columns": [
-            "deck_id"
-          ],
+          "columns": ["deck_id"],
           "isUnique": false
         },
         "deck_card_oracle_id_idx": {
           "name": "deck_card_oracle_id_idx",
-          "columns": [
-            "oracle_id"
-          ],
+          "columns": ["oracle_id"],
           "isUnique": false
         },
         "deck_card_collection_card_id_idx": {
           "name": "deck_card_collection_card_id_idx",
-          "columns": [
-            "collection_card_id"
-          ],
+          "columns": ["collection_card_id"],
           "isUnique": false
         },
         "deck_card_deck_commander_idx": {
           "name": "deck_card_deck_commander_idx",
-          "columns": [
-            "deck_id",
-            "is_commander"
-          ],
+          "columns": ["deck_id", "is_commander"],
           "isUnique": false
         }
       },
@@ -874,12 +767,8 @@
           "name": "deck_card_deck_id_deck_id_fk",
           "tableFrom": "deck_card",
           "tableTo": "deck",
-          "columnsFrom": [
-            "deck_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -887,12 +776,8 @@
           "name": "deck_card_preferred_scryfall_id_scryfall_card_id_fk",
           "tableFrom": "deck_card",
           "tableTo": "scryfall_card",
-          "columnsFrom": [
-            "preferred_scryfall_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["preferred_scryfall_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -900,12 +785,8 @@
           "name": "deck_card_collection_card_id_collection_card_id_fk",
           "tableFrom": "deck_card",
           "tableTo": "collection_card",
-          "columnsFrom": [
-            "collection_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -943,10 +824,7 @@
       "indexes": {
         "deck_card_tag_pk": {
           "name": "deck_card_tag_pk",
-          "columns": [
-            "deck_card_id",
-            "deck_tag_id"
-          ],
+          "columns": ["deck_card_id", "deck_tag_id"],
           "isUnique": true
         }
       },
@@ -955,12 +833,8 @@
           "name": "deck_card_tag_deck_card_id_deck_card_id_fk",
           "tableFrom": "deck_card_tag",
           "tableTo": "deck_card",
-          "columnsFrom": [
-            "deck_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -968,12 +842,8 @@
           "name": "deck_card_tag_deck_tag_id_deck_tag_id_fk",
           "tableFrom": "deck_card_tag",
           "tableTo": "deck_tag",
-          "columnsFrom": [
-            "deck_tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1025,17 +895,12 @@
       "indexes": {
         "deck_tag_deck_id_idx": {
           "name": "deck_tag_deck_id_idx",
-          "columns": [
-            "deck_id"
-          ],
+          "columns": ["deck_id"],
           "isUnique": false
         },
         "deck_tag_deck_name_unique": {
           "name": "deck_tag_deck_name_unique",
-          "columns": [
-            "deck_id",
-            "name"
-          ],
+          "columns": ["deck_id", "name"],
           "isUnique": true
         }
       },
@@ -1044,12 +909,8 @@
           "name": "deck_tag_deck_id_deck_id_fk",
           "tableFrom": "deck_tag",
           "tableTo": "deck",
-          "columnsFrom": [
-            "deck_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1125,9 +986,7 @@
       "indexes": {
         "price_source_name_unique": {
           "name": "price_source_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
@@ -1271,23 +1130,17 @@
       "indexes": {
         "scryfall_card_oracle_id_idx": {
           "name": "scryfall_card_oracle_id_idx",
-          "columns": [
-            "oracle_id"
-          ],
+          "columns": ["oracle_id"],
           "isUnique": false
         },
         "scryfall_card_name_idx": {
           "name": "scryfall_card_name_idx",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": false
         },
         "scryfall_card_set_code_idx": {
           "name": "scryfall_card_set_code_idx",
-          "columns": [
-            "set_code"
-          ],
+          "columns": ["set_code"],
           "isUnique": false
         }
       },
@@ -1363,9 +1216,7 @@
       "indexes": {
         "storage_container_user_id_idx": {
           "name": "storage_container_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -1374,12 +1225,8 @@
           "name": "storage_container_user_id_user_id_fk",
           "tableFrom": "storage_container",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1439,17 +1286,12 @@
       "indexes": {
         "tag_user_id_idx": {
           "name": "tag_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "tag_user_name_unique": {
           "name": "tag_user_name_unique",
-          "columns": [
-            "user_id",
-            "name"
-          ],
+          "columns": ["user_id", "name"],
           "isUnique": true
         }
       },
@@ -1458,12 +1300,8 @@
           "name": "tag_user_id_user_id_fk",
           "tableFrom": "tag",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1530,16 +1368,12 @@
       "indexes": {
         "trade_user_id_idx": {
           "name": "trade_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "trade_partner_idx": {
           "name": "trade_partner_idx",
-          "columns": [
-            "trade_partner_id"
-          ],
+          "columns": ["trade_partner_id"],
           "isUnique": false
         }
       },
@@ -1548,12 +1382,8 @@
           "name": "trade_user_id_user_id_fk",
           "tableFrom": "trade",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1561,12 +1391,8 @@
           "name": "trade_trade_partner_id_trade_partner_id_fk",
           "tableFrom": "trade",
           "tableTo": "trade_partner",
-          "columnsFrom": [
-            "trade_partner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["trade_partner_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1654,16 +1480,12 @@
       "indexes": {
         "trade_card_trade_id_idx": {
           "name": "trade_card_trade_id_idx",
-          "columns": [
-            "trade_id"
-          ],
+          "columns": ["trade_id"],
           "isUnique": false
         },
         "trade_card_collection_card_id_idx": {
           "name": "trade_card_collection_card_id_idx",
-          "columns": [
-            "collection_card_id"
-          ],
+          "columns": ["collection_card_id"],
           "isUnique": false
         }
       },
@@ -1672,12 +1494,8 @@
           "name": "trade_card_trade_id_trade_id_fk",
           "tableFrom": "trade_card",
           "tableTo": "trade",
-          "columnsFrom": [
-            "trade_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["trade_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1685,12 +1503,8 @@
           "name": "trade_card_scryfall_card_id_scryfall_card_id_fk",
           "tableFrom": "trade_card",
           "tableTo": "scryfall_card",
-          "columnsFrom": [
-            "scryfall_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["scryfall_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1698,12 +1512,8 @@
           "name": "trade_card_collection_card_id_collection_card_id_fk",
           "tableFrom": "trade_card",
           "tableTo": "collection_card",
-          "columnsFrom": [
-            "collection_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1770,9 +1580,7 @@
       "indexes": {
         "trade_partner_user_id_idx": {
           "name": "trade_partner_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -1781,12 +1589,8 @@
           "name": "trade_partner_user_id_user_id_fk",
           "tableFrom": "trade_partner",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1867,9 +1671,7 @@
       "indexes": {
         "virtual_list_user_id_idx": {
           "name": "virtual_list_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -1878,12 +1680,8 @@
           "name": "virtual_list_user_id_user_id_fk",
           "tableFrom": "virtual_list",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1949,16 +1747,12 @@
       "indexes": {
         "virtual_list_card_list_idx": {
           "name": "virtual_list_card_list_idx",
-          "columns": [
-            "virtual_list_id"
-          ],
+          "columns": ["virtual_list_id"],
           "isUnique": false
         },
         "virtual_list_card_collection_card_idx": {
           "name": "virtual_list_card_collection_card_idx",
-          "columns": [
-            "collection_card_id"
-          ],
+          "columns": ["collection_card_id"],
           "isUnique": false
         }
       },
@@ -1967,12 +1761,8 @@
           "name": "virtual_list_card_virtual_list_id_virtual_list_id_fk",
           "tableFrom": "virtual_list_card",
           "tableTo": "virtual_list",
-          "columnsFrom": [
-            "virtual_list_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["virtual_list_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1980,12 +1770,8 @@
           "name": "virtual_list_card_collection_card_id_collection_card_id_fk",
           "tableFrom": "virtual_list_card",
           "tableTo": "collection_card",
-          "columnsFrom": [
-            "collection_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1993,12 +1779,8 @@
           "name": "virtual_list_card_price_source_id_price_source_id_fk",
           "tableFrom": "virtual_list_card",
           "tableTo": "price_source",
-          "columnsFrom": [
-            "price_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["price_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2081,33 +1863,22 @@
       "indexes": {
         "wishlist_item_user_id_idx": {
           "name": "wishlist_item_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "wishlist_item_deck_id_idx": {
           "name": "wishlist_item_deck_id_idx",
-          "columns": [
-            "deck_id"
-          ],
+          "columns": ["deck_id"],
           "isUnique": false
         },
         "wishlist_item_user_deck_idx": {
           "name": "wishlist_item_user_deck_idx",
-          "columns": [
-            "user_id",
-            "deck_id"
-          ],
+          "columns": ["user_id", "deck_id"],
           "isUnique": false
         },
         "wishlist_item_user_card_deck_unique": {
           "name": "wishlist_item_user_card_deck_unique",
-          "columns": [
-            "user_id",
-            "scryfall_card_id",
-            "deck_id"
-          ],
+          "columns": ["user_id", "scryfall_card_id", "deck_id"],
           "isUnique": true
         }
       },
@@ -2116,12 +1887,8 @@
           "name": "wishlist_item_user_id_user_id_fk",
           "tableFrom": "wishlist_item",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2129,12 +1896,8 @@
           "name": "wishlist_item_scryfall_card_id_scryfall_card_id_fk",
           "tableFrom": "wishlist_item",
           "tableTo": "scryfall_card",
-          "columnsFrom": [
-            "scryfall_card_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["scryfall_card_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2142,12 +1905,8 @@
           "name": "wishlist_item_deck_id_deck_id_fk",
           "tableFrom": "wishlist_item",
           "tableTo": "deck",
-          "columnsFrom": [
-            "deck_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deck_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2255,9 +2014,7 @@
       "indexes": {
         "account_userId_idx": {
           "name": "account_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -2266,12 +2023,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2344,16 +2097,12 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         },
         "session_userId_idx": {
           "name": "session_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -2362,12 +2111,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2435,9 +2180,7 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -2497,9 +2240,7 @@
       "indexes": {
         "verification_identifier_idx": {
           "name": "verification_identifier_idx",
-          "columns": [
-            "identifier"
-          ],
+          "columns": ["identifier"],
           "isUnique": false
         }
       },

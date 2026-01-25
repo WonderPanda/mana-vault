@@ -1,14 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { relations, sql } from "drizzle-orm";
-import {
-	sqliteTable,
-	text,
-	integer,
-	real,
-	index,
-	unique,
-} from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, unique } from "drizzle-orm/sqlite-core";
 
 import { user } from "./auth";
 
@@ -55,9 +48,9 @@ export const scryfallCard = sqliteTable(
 // =============================================================================
 
 export const priceSource = sqliteTable("price_source", {
-	id: text("id")
-		.primaryKey()
-		.$defaultFn(() => randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => randomUUID()),
   name: text("name").notNull().unique(), // scryfall, tcgplayer, cardkingdom
   displayName: text("display_name").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).default(true).notNull(),
@@ -76,8 +69,8 @@ export const cardPrice = sqliteTable(
   "card_price",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     scryfallCardId: text("scryfall_card_id")
       .notNull()
       .references(() => scryfallCard.id, { onDelete: "cascade" }),
@@ -94,10 +87,7 @@ export const cardPrice = sqliteTable(
   (table) => [
     index("card_price_scryfall_card_id_idx").on(table.scryfallCardId),
     index("card_price_price_source_id_idx").on(table.priceSourceId),
-    unique("card_price_card_source_unique").on(
-      table.scryfallCardId,
-      table.priceSourceId,
-    ),
+    unique("card_price_card_source_unique").on(table.scryfallCardId, table.priceSourceId),
   ],
 );
 
@@ -109,8 +99,8 @@ export const collectionCard = sqliteTable(
   "collection_card",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -136,10 +126,7 @@ export const collectionCard = sqliteTable(
   (table) => [
     index("collection_card_user_id_idx").on(table.userId),
     index("collection_card_scryfall_card_id_idx").on(table.scryfallCardId),
-    index("collection_card_user_scryfall_idx").on(
-      table.userId,
-      table.scryfallCardId,
-    ),
+    index("collection_card_user_scryfall_idx").on(table.userId, table.scryfallCardId),
     index("collection_card_user_status_idx").on(table.userId, table.status),
   ],
 );
@@ -152,8 +139,8 @@ export const storageContainer = sqliteTable(
   "storage_container",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -176,16 +163,15 @@ export const collectionCardLocation = sqliteTable(
   "collection_card_location",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     collectionCardId: text("collection_card_id")
       .notNull()
       .unique()
       .references(() => collectionCard.id, { onDelete: "cascade" }),
-    storageContainerId: text("storage_container_id").references(
-      () => storageContainer.id,
-      { onDelete: "set null" },
-    ),
+    storageContainerId: text("storage_container_id").references(() => storageContainer.id, {
+      onDelete: "set null",
+    }),
     deckId: text("deck_id").references(() => deck.id, { onDelete: "set null" }),
     assignedAt: integer("assigned_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -202,15 +188,14 @@ export const collectionCardLocationHistory = sqliteTable(
   "collection_card_location_history",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     collectionCardId: text("collection_card_id")
       .notNull()
       .references(() => collectionCard.id, { onDelete: "cascade" }),
-    storageContainerId: text("storage_container_id").references(
-      () => storageContainer.id,
-      { onDelete: "set null" },
-    ),
+    storageContainerId: text("storage_container_id").references(() => storageContainer.id, {
+      onDelete: "set null",
+    }),
     deckId: text("deck_id").references(() => deck.id, { onDelete: "set null" }),
     virtualListId: text("virtual_list_id").references(() => virtualList.id, {
       onDelete: "set null",
@@ -221,9 +206,7 @@ export const collectionCardLocationHistory = sqliteTable(
     endedAt: integer("ended_at", { mode: "timestamp_ms" }),
   },
   (table) => [
-    index("collection_card_location_history_card_idx").on(
-      table.collectionCardId,
-    ),
+    index("collection_card_location_history_card_idx").on(table.collectionCardId),
     index("collection_card_location_history_deck_idx").on(table.deckId),
     index("collection_card_location_history_list_idx").on(table.virtualListId),
   ],
@@ -237,8 +220,8 @@ export const deck = sqliteTable(
   "deck",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -248,9 +231,7 @@ export const deck = sqliteTable(
     archetype: text("archetype"), // aggro, control, combo, midrange, tempo, other
     colorIdentity: text("color_identity"), // JSON array
     description: text("description"),
-    isPublic: integer("is_public", { mode: "boolean" })
-      .default(false)
-      .notNull(),
+    isPublic: integer("is_public", { mode: "boolean" }).default(false).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -271,27 +252,20 @@ export const deckCard = sqliteTable(
   "deck_card",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     deckId: text("deck_id")
       .notNull()
       .references(() => deck.id, { onDelete: "cascade" }),
     oracleId: text("oracle_id").notNull(), // Card concept (any printing)
-    preferredScryfallId: text("preferred_scryfall_id").references(
-      () => scryfallCard.id,
-    ), // Preferred printing (optional)
+    preferredScryfallId: text("preferred_scryfall_id").references(() => scryfallCard.id), // Preferred printing (optional)
     quantity: integer("quantity").default(1).notNull(),
     board: text("board").default("main").notNull(), // main, sideboard, maybeboard
-    isCommander: integer("is_commander", { mode: "boolean" })
-      .default(false)
-      .notNull(),
-    isCompanion: integer("is_companion", { mode: "boolean" })
-      .default(false)
-      .notNull(),
-    collectionCardId: text("collection_card_id").references(
-      () => collectionCard.id,
-      { onDelete: "set null" },
-    ), // Link to owned copy
+    isCommander: integer("is_commander", { mode: "boolean" }).default(false).notNull(),
+    isCompanion: integer("is_companion", { mode: "boolean" }).default(false).notNull(),
+    collectionCardId: text("collection_card_id").references(() => collectionCard.id, {
+      onDelete: "set null",
+    }), // Link to owned copy
     isProxy: integer("is_proxy", { mode: "boolean" }).default(false).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -314,8 +288,8 @@ export const deckTag = sqliteTable(
   "deck_tag",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     deckId: text("deck_id")
       .notNull()
       .references(() => deck.id, { onDelete: "cascade" }),
@@ -355,8 +329,8 @@ export const wishlistItem = sqliteTable(
   "wishlist_item",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -395,8 +369,8 @@ export const virtualList = sqliteTable(
   "virtual_list",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -420,8 +394,8 @@ export const virtualListCard = sqliteTable(
   "virtual_list_card",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     virtualListId: text("virtual_list_id")
       .notNull()
       .references(() => virtualList.id, { onDelete: "cascade" }),
@@ -451,16 +425,14 @@ export const tag = sqliteTable(
   "tag",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     color: text("color"),
-    isSystem: integer("is_system", { mode: "boolean" })
-      .default(false)
-      .notNull(),
+    isSystem: integer("is_system", { mode: "boolean" }).default(false).notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
@@ -484,9 +456,7 @@ export const collectionCardTag = sqliteTable(
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
   },
-  (table) => [
-    unique("collection_card_tag_pk").on(table.collectionCardId, table.tagId),
-  ],
+  (table) => [unique("collection_card_tag_pk").on(table.collectionCardId, table.tagId)],
 );
 
 // =============================================================================
@@ -497,8 +467,8 @@ export const tradePartner = sqliteTable(
   "trade_partner",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -520,8 +490,8 @@ export const trade = sqliteTable(
   "trade",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -548,18 +518,17 @@ export const tradeCard = sqliteTable(
   "trade_card",
   {
     id: text("id")
-			.primaryKey()
-			.$defaultFn(() => randomUUID()),
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     tradeId: text("trade_id")
       .notNull()
       .references(() => trade.id, { onDelete: "cascade" }),
     scryfallCardId: text("scryfall_card_id")
       .notNull()
       .references(() => scryfallCard.id),
-    collectionCardId: text("collection_card_id").references(
-      () => collectionCard.id,
-      { onDelete: "set null" },
-    ),
+    collectionCardId: text("collection_card_id").references(() => collectionCard.id, {
+      onDelete: "set null",
+    }),
     direction: text("direction").notNull(), // gave, received
     quantity: integer("quantity").default(1).notNull(),
     valueAtTrade: real("value_at_trade"),
@@ -602,55 +571,46 @@ export const cardPriceRelations = relations(cardPrice, ({ one }) => ({
 }));
 
 // Collection Card Relations
-export const collectionCardRelations = relations(
-  collectionCard,
-  ({ one, many }) => ({
-    user: one(user, {
-      fields: [collectionCard.userId],
-      references: [user.id],
-    }),
-    scryfallCard: one(scryfallCard, {
-      fields: [collectionCard.scryfallCardId],
-      references: [scryfallCard.id],
-    }),
-    location: one(collectionCardLocation),
-    locationHistory: many(collectionCardLocationHistory),
-    tags: many(collectionCardTag),
-    virtualListCards: many(virtualListCard),
-    deckCards: many(deckCard),
-    tradeCards: many(tradeCard),
+export const collectionCardRelations = relations(collectionCard, ({ one, many }) => ({
+  user: one(user, {
+    fields: [collectionCard.userId],
+    references: [user.id],
   }),
-);
+  scryfallCard: one(scryfallCard, {
+    fields: [collectionCard.scryfallCardId],
+    references: [scryfallCard.id],
+  }),
+  location: one(collectionCardLocation),
+  locationHistory: many(collectionCardLocationHistory),
+  tags: many(collectionCardTag),
+  virtualListCards: many(virtualListCard),
+  deckCards: many(deckCard),
+  tradeCards: many(tradeCard),
+}));
 
 // Storage Relations
-export const storageContainerRelations = relations(
-  storageContainer,
-  ({ one, many }) => ({
-    user: one(user, {
-      fields: [storageContainer.userId],
-      references: [user.id],
-    }),
-    cardLocations: many(collectionCardLocation),
+export const storageContainerRelations = relations(storageContainer, ({ one, many }) => ({
+  user: one(user, {
+    fields: [storageContainer.userId],
+    references: [user.id],
   }),
-);
+  cardLocations: many(collectionCardLocation),
+}));
 
-export const collectionCardLocationRelations = relations(
-  collectionCardLocation,
-  ({ one }) => ({
-    collectionCard: one(collectionCard, {
-      fields: [collectionCardLocation.collectionCardId],
-      references: [collectionCard.id],
-    }),
-    storageContainer: one(storageContainer, {
-      fields: [collectionCardLocation.storageContainerId],
-      references: [storageContainer.id],
-    }),
-    deck: one(deck, {
-      fields: [collectionCardLocation.deckId],
-      references: [deck.id],
-    }),
+export const collectionCardLocationRelations = relations(collectionCardLocation, ({ one }) => ({
+  collectionCard: one(collectionCard, {
+    fields: [collectionCardLocation.collectionCardId],
+    references: [collectionCard.id],
   }),
-);
+  storageContainer: one(storageContainer, {
+    fields: [collectionCardLocation.storageContainerId],
+    references: [storageContainer.id],
+  }),
+  deck: one(deck, {
+    fields: [collectionCardLocation.deckId],
+    references: [deck.id],
+  }),
+}));
 
 export const collectionCardLocationHistoryRelations = relations(
   collectionCardLocationHistory,
@@ -746,23 +706,20 @@ export const virtualListRelations = relations(virtualList, ({ one, many }) => ({
   cards: many(virtualListCard),
 }));
 
-export const virtualListCardRelations = relations(
-  virtualListCard,
-  ({ one }) => ({
-    virtualList: one(virtualList, {
-      fields: [virtualListCard.virtualListId],
-      references: [virtualList.id],
-    }),
-    collectionCard: one(collectionCard, {
-      fields: [virtualListCard.collectionCardId],
-      references: [collectionCard.id],
-    }),
-    priceSource: one(priceSource, {
-      fields: [virtualListCard.priceSourceId],
-      references: [priceSource.id],
-    }),
+export const virtualListCardRelations = relations(virtualListCard, ({ one }) => ({
+  virtualList: one(virtualList, {
+    fields: [virtualListCard.virtualListId],
+    references: [virtualList.id],
   }),
-);
+  collectionCard: one(collectionCard, {
+    fields: [virtualListCard.collectionCardId],
+    references: [collectionCard.id],
+  }),
+  priceSource: one(priceSource, {
+    fields: [virtualListCard.priceSourceId],
+    references: [priceSource.id],
+  }),
+}));
 
 // Tag Relations (Collection-level)
 export const tagRelations = relations(tag, ({ one, many }) => ({
@@ -773,31 +730,25 @@ export const tagRelations = relations(tag, ({ one, many }) => ({
   collectionCardTags: many(collectionCardTag),
 }));
 
-export const collectionCardTagRelations = relations(
-  collectionCardTag,
-  ({ one }) => ({
-    collectionCard: one(collectionCard, {
-      fields: [collectionCardTag.collectionCardId],
-      references: [collectionCard.id],
-    }),
-    tag: one(tag, {
-      fields: [collectionCardTag.tagId],
-      references: [tag.id],
-    }),
+export const collectionCardTagRelations = relations(collectionCardTag, ({ one }) => ({
+  collectionCard: one(collectionCard, {
+    fields: [collectionCardTag.collectionCardId],
+    references: [collectionCard.id],
   }),
-);
+  tag: one(tag, {
+    fields: [collectionCardTag.tagId],
+    references: [tag.id],
+  }),
+}));
 
 // Trade Relations
-export const tradePartnerRelations = relations(
-  tradePartner,
-  ({ one, many }) => ({
-    user: one(user, {
-      fields: [tradePartner.userId],
-      references: [user.id],
-    }),
-    trades: many(trade),
+export const tradePartnerRelations = relations(tradePartner, ({ one, many }) => ({
+  user: one(user, {
+    fields: [tradePartner.userId],
+    references: [user.id],
   }),
-);
+  trades: many(trade),
+}));
 
 export const tradeRelations = relations(trade, ({ one, many }) => ({
   user: one(user, {

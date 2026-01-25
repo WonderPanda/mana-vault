@@ -19,26 +19,26 @@ This document outlines the planned database schema for Mana Vault. The database 
 
 Cached card data from Scryfall API. This is reference data, not user-owned cards.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | Scryfall UUID |
-| oracle_id | text | Oracle ID (groups all printings) |
-| name | text | Card name |
-| set_code | text | Set code (e.g., "neo") |
-| set_name | text | Full set name |
-| collector_number | text | Collector number within set |
-| rarity | text | common, uncommon, rare, mythic |
-| mana_cost | text | Mana cost string |
-| cmc | real | Converted mana cost |
-| type_line | text | Full type line |
-| oracle_text | text | Rules text |
-| colors | text | JSON array of colors |
-| color_identity | text | JSON array of color identity |
-| image_uri | text | Primary image URL |
-| scryfall_uri | text | Link to Scryfall page |
-| data_json | text | Full Scryfall JSON (for additional fields) |
-| created_at | integer | When cached |
-| updated_at | integer | Last cache refresh |
+| Column           | Type      | Description                                |
+| ---------------- | --------- | ------------------------------------------ |
+| id               | text (PK) | Scryfall UUID                              |
+| oracle_id        | text      | Oracle ID (groups all printings)           |
+| name             | text      | Card name                                  |
+| set_code         | text      | Set code (e.g., "neo")                     |
+| set_name         | text      | Full set name                              |
+| collector_number | text      | Collector number within set                |
+| rarity           | text      | common, uncommon, rare, mythic             |
+| mana_cost        | text      | Mana cost string                           |
+| cmc              | real      | Converted mana cost                        |
+| type_line        | text      | Full type line                             |
+| oracle_text      | text      | Rules text                                 |
+| colors           | text      | JSON array of colors                       |
+| color_identity   | text      | JSON array of color identity               |
+| image_uri        | text      | Primary image URL                          |
+| scryfall_uri     | text      | Link to Scryfall page                      |
+| data_json        | text      | Full Scryfall JSON (for additional fields) |
+| created_at       | integer   | When cached                                |
+| updated_at       | integer   | Last cache refresh                         |
 
 **Indexes**: `oracle_id`, `name`, `set_code`
 
@@ -50,21 +50,21 @@ Cached card data from Scryfall API. This is reference data, not user-owned cards
 
 Individual cards owned by a user. **Each row = one physical card.** This allows each card to have its own condition, location, and deck assignment.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| scryfall_card_id | text (FK) | Reference to scryfall_card |
-| condition | text | NM, LP, MP, HP, DMG |
-| is_foil | integer | Boolean - foil or non-foil |
-| language | text | Card language (default "en") |
-| notes | text | User notes |
-| acquired_at | integer | When acquired |
-| acquired_from | text | Where it came from (optional) |
-| status | text | owned, traded, sold, lost (default "owned") |
-| removed_at | integer (nullable) | When card left collection (traded/sold/lost) |
-| created_at | integer | Record created |
-| updated_at | integer | Record updated |
+| Column           | Type               | Description                                  |
+| ---------------- | ------------------ | -------------------------------------------- |
+| id               | text (PK)          | UUID                                         |
+| user_id          | text (FK)          | Owner                                        |
+| scryfall_card_id | text (FK)          | Reference to scryfall_card                   |
+| condition        | text               | NM, LP, MP, HP, DMG                          |
+| is_foil          | integer            | Boolean - foil or non-foil                   |
+| language         | text               | Card language (default "en")                 |
+| notes            | text               | User notes                                   |
+| acquired_at      | integer            | When acquired                                |
+| acquired_from    | text               | Where it came from (optional)                |
+| status           | text               | owned, traded, sold, lost (default "owned")  |
+| removed_at       | integer (nullable) | When card left collection (traded/sold/lost) |
+| created_at       | integer            | Record created                               |
+| updated_at       | integer            | Record updated                               |
 
 **Indexes**: `user_id`, `scryfall_card_id`, `user_id + scryfall_card_id`, `user_id + status`
 
@@ -90,16 +90,16 @@ Individual cards owned by a user. **Each row = one physical card.** This allows 
 
 Binders, boxes, and other storage solutions.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| name | text | Container name (e.g., "Trade Binder", "Box 1") |
-| type | text | binder, box, deck_box, other |
-| description | text | Optional notes |
-| sort_order | integer | User-defined ordering |
-| created_at | integer | |
-| updated_at | integer | |
+| Column      | Type      | Description                                    |
+| ----------- | --------- | ---------------------------------------------- |
+| id          | text (PK) | UUID                                           |
+| user_id     | text (FK) | Owner                                          |
+| name        | text      | Container name (e.g., "Trade Binder", "Box 1") |
+| type        | text      | binder, box, deck_box, other                   |
+| description | text      | Optional notes                                 |
+| sort_order  | integer   | User-defined ordering                          |
+| created_at  | integer   |                                                |
+| updated_at  | integer   |                                                |
 
 **Indexes**: `user_id`
 
@@ -107,13 +107,13 @@ Binders, boxes, and other storage solutions.
 
 Current location of a collection card.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| collection_card_id | text (FK, unique) | The card (one current location per card) |
-| storage_container_id | text (FK, nullable) | Current container (null = unassigned) |
-| deck_id | text (FK, nullable) | If in a deck |
-| assigned_at | integer | When placed here |
+| Column               | Type                | Description                              |
+| -------------------- | ------------------- | ---------------------------------------- |
+| id                   | text (PK)           | UUID                                     |
+| collection_card_id   | text (FK, unique)   | The card (one current location per card) |
+| storage_container_id | text (FK, nullable) | Current container (null = unassigned)    |
+| deck_id              | text (FK, nullable) | If in a deck                             |
+| assigned_at          | integer             | When placed here                         |
 
 **Constraint**: Either `storage_container_id` OR `deck_id` should be set, not both (card is in storage OR in a deck).
 
@@ -123,19 +123,20 @@ Current location of a collection card.
 
 Historical record of where a card has been. Enables "show me all decks this card has been in."
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| collection_card_id | text (FK) | The card |
-| storage_container_id | text (FK, nullable) | Container it was in |
-| deck_id | text (FK, nullable) | Deck it was in |
-| virtual_list_id | text (FK, nullable) | Original virtual list (if from a snapshot) |
-| started_at | integer | When card was placed here |
-| ended_at | integer | When card was moved away |
+| Column               | Type                | Description                                |
+| -------------------- | ------------------- | ------------------------------------------ |
+| id                   | text (PK)           | UUID                                       |
+| collection_card_id   | text (FK)           | The card                                   |
+| storage_container_id | text (FK, nullable) | Container it was in                        |
+| deck_id              | text (FK, nullable) | Deck it was in                             |
+| virtual_list_id      | text (FK, nullable) | Original virtual list (if from a snapshot) |
+| started_at           | integer             | When card was placed here                  |
+| ended_at             | integer             | When card was moved away                   |
 
 **Indexes**: `collection_card_id`, `deck_id`, `virtual_list_id`
 
 **Use cases**:
+
 - "What decks has this Sol Ring been in?"
 - "This card originally came from my brother-in-law's collection"
 - Timeline view of a card's journey through your collection
@@ -148,20 +149,20 @@ Historical record of where a card has been. Enables "show me all decks this card
 
 User's deck lists.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| name | text | Deck name |
-| format | text | commander, standard, modern, legacy, pioneer, pauper, other |
-| status | text | active, retired, in_progress, theorycraft |
-| archetype | text | aggro, control, combo, midrange, tempo, other |
-| color_identity | text | JSON array of colors |
-| description | text | Deck notes/primer |
-| is_public | integer | Boolean - for future sharing |
-| sort_order | integer | User-defined ordering |
-| created_at | integer | |
-| updated_at | integer | |
+| Column         | Type      | Description                                                 |
+| -------------- | --------- | ----------------------------------------------------------- |
+| id             | text (PK) | UUID                                                        |
+| user_id        | text (FK) | Owner                                                       |
+| name           | text      | Deck name                                                   |
+| format         | text      | commander, standard, modern, legacy, pioneer, pauper, other |
+| status         | text      | active, retired, in_progress, theorycraft                   |
+| archetype      | text      | aggro, control, combo, midrange, tempo, other               |
+| color_identity | text      | JSON array of colors                                        |
+| description    | text      | Deck notes/primer                                           |
+| is_public      | integer   | Boolean - for future sharing                                |
+| sort_order     | integer   | User-defined ordering                                       |
+| created_at     | integer   |                                                             |
+| updated_at     | integer   |                                                             |
 
 **Indexes**: `user_id`, `user_id + status`, `user_id + format`
 
@@ -169,25 +170,26 @@ User's deck lists.
 
 Cards in a deck (the deck list itself). Uses hybrid ID approach: oracle_id for the card concept, optional preferred printing.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| deck_id | text (FK) | The deck |
-| oracle_id | text | Oracle ID - the card you want (any printing) |
-| preferred_scryfall_id | text (FK, nullable) | Preferred printing (optional aesthetic choice) |
-| quantity | integer | How many in the deck |
-| board | text | main, sideboard, maybeboard |
-| is_commander | integer | Boolean - is this a commander (for Commander format) |
-| is_companion | integer | Boolean - is this a companion |
-| collection_card_id | text (FK, nullable) | Link to owned copy (if any) |
-| is_proxy | integer | Boolean - using a proxy for this slot |
-| sort_order | integer | Order in list |
-| created_at | integer | |
-| updated_at | integer | |
+| Column                | Type                | Description                                          |
+| --------------------- | ------------------- | ---------------------------------------------------- |
+| id                    | text (PK)           | UUID                                                 |
+| deck_id               | text (FK)           | The deck                                             |
+| oracle_id             | text                | Oracle ID - the card you want (any printing)         |
+| preferred_scryfall_id | text (FK, nullable) | Preferred printing (optional aesthetic choice)       |
+| quantity              | integer             | How many in the deck                                 |
+| board                 | text                | main, sideboard, maybeboard                          |
+| is_commander          | integer             | Boolean - is this a commander (for Commander format) |
+| is_companion          | integer             | Boolean - is this a companion                        |
+| collection_card_id    | text (FK, nullable) | Link to owned copy (if any)                          |
+| is_proxy              | integer             | Boolean - using a proxy for this slot                |
+| sort_order            | integer             | Order in list                                        |
+| created_at            | integer             |                                                      |
+| updated_at            | integer             |                                                      |
 
 **Indexes**: `deck_id`, `oracle_id`, `collection_card_id`, `deck_id + is_commander`
 
 **Design decisions**:
+
 - `oracle_id` allows flexible deck building without choosing a specific printing upfront
 - `preferred_scryfall_id` captures aesthetic preferences (e.g., "I want the retro frame version")
 - `collection_card_id` links to the actual physical card you own (which has its own scryfall_card_id)
@@ -198,13 +200,13 @@ Cards in a deck (the deck list itself). Uses hybrid ID approach: oracle_id for t
 
 Tags scoped to a specific deck for deck-building organization.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| deck_id | text (FK) | The deck this tag belongs to |
-| name | text | Tag name (e.g., "ramp", "removal", "win-con") |
-| color | text | Display color (hex) |
-| created_at | integer | |
+| Column     | Type      | Description                                   |
+| ---------- | --------- | --------------------------------------------- |
+| id         | text (PK) | UUID                                          |
+| deck_id    | text (FK) | The deck this tag belongs to                  |
+| name       | text      | Tag name (e.g., "ramp", "removal", "win-con") |
+| color      | text      | Display color (hex)                           |
+| created_at | integer   |                                               |
 
 **Indexes**: `deck_id`
 
@@ -214,15 +216,16 @@ Tags scoped to a specific deck for deck-building organization.
 
 Many-to-many: deck-scoped tags on deck cards.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| deck_card_id | text (FK) | |
-| deck_tag_id | text (FK) | |
-| created_at | integer | |
+| Column       | Type      | Description |
+| ------------ | --------- | ----------- |
+| deck_card_id | text (FK) |             |
+| deck_tag_id  | text (FK) |             |
+| created_at   | integer   |             |
 
 **Primary key**: `deck_card_id + deck_tag_id`
 
 **Use cases**:
+
 - Tag cards by function: "ramp", "removal", "card draw", "win condition"
 - Group by custom categories: "synergy piece", "pet card", "budget replacement"
 - Filter deck view by tags to analyze card distribution
@@ -235,17 +238,17 @@ Many-to-many: deck-scoped tags on deck cards.
 
 Global and deck-specific wishlists.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| scryfall_card_id | text (FK) | Desired card |
-| deck_id | text (FK, nullable) | If deck-specific (null = global) |
-| quantity | integer | How many wanted |
-| priority | integer | Sort order within the wishlist |
-| notes | text | Why you want it, etc. |
-| created_at | integer | |
-| updated_at | integer | |
+| Column           | Type                | Description                      |
+| ---------------- | ------------------- | -------------------------------- |
+| id               | text (PK)           | UUID                             |
+| user_id          | text (FK)           | Owner                            |
+| scryfall_card_id | text (FK)           | Desired card                     |
+| deck_id          | text (FK, nullable) | If deck-specific (null = global) |
+| quantity         | integer             | How many wanted                  |
+| priority         | integer             | Sort order within the wishlist   |
+| notes            | text                | Why you want it, etc.            |
+| created_at       | integer             |                                  |
+| updated_at       | integer             |                                  |
 
 **Indexes**: `user_id`, `deck_id`, `user_id + deck_id`
 
@@ -259,17 +262,17 @@ Global and deck-specific wishlists.
 
 Named lists for historical preservation.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| name | text | List name (e.g., "Cards from brother-in-law") |
-| description | text | Notes about the list |
-| source_type | text | gift, purchase, trade, other |
-| source_name | text | Who/where it came from |
-| snapshot_date | integer | When the collection was received/captured |
-| created_at | integer | |
-| updated_at | integer | |
+| Column        | Type      | Description                                   |
+| ------------- | --------- | --------------------------------------------- |
+| id            | text (PK) | UUID                                          |
+| user_id       | text (FK) | Owner                                         |
+| name          | text      | List name (e.g., "Cards from brother-in-law") |
+| description   | text      | Notes about the list                          |
+| source_type   | text      | gift, purchase, trade, other                  |
+| source_name   | text      | Who/where it came from                        |
+| snapshot_date | integer   | When the collection was received/captured     |
+| created_at    | integer   |                                               |
+| updated_at    | integer   |                                               |
 
 **Indexes**: `user_id`
 
@@ -277,15 +280,15 @@ Named lists for historical preservation.
 
 Cards on a virtual list with their snapshot values.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| virtual_list_id | text (FK) | The list |
-| collection_card_id | text (FK) | Link to the actual card |
-| snapshot_price | real | Value at time of snapshot |
-| price_source_id | text (FK, nullable) | Which price source was used |
-| notes | text | |
-| created_at | integer | |
+| Column             | Type                | Description                 |
+| ------------------ | ------------------- | --------------------------- |
+| id                 | text (PK)           | UUID                        |
+| virtual_list_id    | text (FK)           | The list                    |
+| collection_card_id | text (FK)           | Link to the actual card     |
+| snapshot_price     | real                | Value at time of snapshot   |
+| price_source_id    | text (FK, nullable) | Which price source was used |
+| notes              | text                |                             |
+| created_at         | integer             |                             |
 
 **Indexes**: `virtual_list_id`, `collection_card_id`
 
@@ -297,14 +300,14 @@ Cards on a virtual list with their snapshot values.
 
 User-defined tags.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| name | text | Tag name |
-| color | text | Display color (hex) |
-| is_system | integer | Boolean - system tag vs custom |
-| created_at | integer | |
+| Column     | Type      | Description                    |
+| ---------- | --------- | ------------------------------ |
+| id         | text (PK) | UUID                           |
+| user_id    | text (FK) | Owner                          |
+| name       | text      | Tag name                       |
+| color      | text      | Display color (hex)            |
+| is_system  | integer   | Boolean - system tag vs custom |
+| created_at | integer   |                                |
 
 **Indexes**: `user_id`
 
@@ -314,11 +317,11 @@ User-defined tags.
 
 Many-to-many: tags on collection cards.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| collection_card_id | text (FK) | |
-| tag_id | text (FK) | |
-| created_at | integer | |
+| Column             | Type      | Description |
+| ------------------ | --------- | ----------- |
+| collection_card_id | text (FK) |             |
+| tag_id             | text (FK) |             |
+| created_at         | integer   |             |
 
 **Primary key**: `collection_card_id + tag_id`
 
@@ -330,15 +333,15 @@ Many-to-many: tags on collection cards.
 
 People you trade with.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| name | text | Partner's name |
-| contact_info | text | How to reach them |
-| notes | text | |
-| created_at | integer | |
-| updated_at | integer | |
+| Column       | Type      | Description       |
+| ------------ | --------- | ----------------- |
+| id           | text (PK) | UUID              |
+| user_id      | text (FK) | Owner             |
+| name         | text      | Partner's name    |
+| contact_info | text      | How to reach them |
+| notes        | text      |                   |
+| created_at   | integer   |                   |
+| updated_at   | integer   |                   |
 
 **Indexes**: `user_id`
 
@@ -346,15 +349,15 @@ People you trade with.
 
 A trade event.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| user_id | text (FK) | Owner |
-| trade_partner_id | text (FK, nullable) | Who you traded with |
-| trade_date | integer | When the trade happened |
-| notes | text | |
-| created_at | integer | |
-| updated_at | integer | |
+| Column           | Type                | Description             |
+| ---------------- | ------------------- | ----------------------- |
+| id               | text (PK)           | UUID                    |
+| user_id          | text (FK)           | Owner                   |
+| trade_partner_id | text (FK, nullable) | Who you traded with     |
+| trade_date       | integer             | When the trade happened |
+| notes            | text                |                         |
+| created_at       | integer             |                         |
+| updated_at       | integer             |                         |
 
 **Indexes**: `user_id`, `trade_partner_id`
 
@@ -362,18 +365,18 @@ A trade event.
 
 Cards involved in a trade.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| trade_id | text (FK) | The trade |
-| scryfall_card_id | text (FK) | Which card |
+| Column             | Type                | Description                              |
+| ------------------ | ------------------- | ---------------------------------------- |
+| id                 | text (PK)           | UUID                                     |
+| trade_id           | text (FK)           | The trade                                |
+| scryfall_card_id   | text (FK)           | Which card                               |
 | collection_card_id | text (FK, nullable) | Link to your collection (if you gave it) |
-| direction | text | gave, received |
-| quantity | integer | How many |
-| value_at_trade | real | Agreed/market value at trade time |
-| condition | text | Card condition |
-| is_foil | integer | Boolean |
-| notes | text | |
+| direction          | text                | gave, received                           |
+| quantity           | integer             | How many                                 |
+| value_at_trade     | real                | Agreed/market value at trade time        |
+| condition          | text                | Card condition                           |
+| is_foil            | integer             | Boolean                                  |
+| notes              | text                |                                          |
 
 **Indexes**: `trade_id`, `collection_card_id`
 
@@ -385,30 +388,30 @@ Cards involved in a trade.
 
 Pricing providers.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| name | text | scryfall, tcgplayer, cardkingdom, etc. |
-| display_name | text | Human-readable name |
-| is_active | integer | Boolean - is this source enabled |
-| last_sync_at | integer | Last successful sync |
-| sync_interval_hours | integer | How often to sync |
-| created_at | integer | |
-| updated_at | integer | |
+| Column              | Type      | Description                            |
+| ------------------- | --------- | -------------------------------------- |
+| id                  | text (PK) | UUID                                   |
+| name                | text      | scryfall, tcgplayer, cardkingdom, etc. |
+| display_name        | text      | Human-readable name                    |
+| is_active           | integer   | Boolean - is this source enabled       |
+| last_sync_at        | integer   | Last successful sync                   |
+| sync_interval_hours | integer   | How often to sync                      |
+| created_at          | integer   |                                        |
+| updated_at          | integer   |                                        |
 
 #### `card_price`
 
 Price data for cards from various sources.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | text (PK) | UUID |
-| scryfall_card_id | text (FK) | The card |
-| price_source_id | text (FK) | The source |
-| price_usd | real | Normal price in USD |
-| price_usd_foil | real | Foil price in USD |
-| price_usd_etched | real | Etched foil price (if applicable) |
-| fetched_at | integer | When this price was fetched |
+| Column           | Type      | Description                       |
+| ---------------- | --------- | --------------------------------- |
+| id               | text (PK) | UUID                              |
+| scryfall_card_id | text (FK) | The card                          |
+| price_source_id  | text (FK) | The source                        |
+| price_usd        | real      | Normal price in USD               |
+| price_usd_foil   | real      | Foil price in USD                 |
+| price_usd_etched | real      | Etched foil price (if applicable) |
+| fetched_at       | integer   | When this price was fetched       |
 
 **Indexes**: `scryfall_card_id`, `price_source_id`, `scryfall_card_id + price_source_id`
 

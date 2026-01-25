@@ -6,9 +6,8 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import Header from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { link, orpc } from "@/utils/orpc";
@@ -41,9 +40,37 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   }),
 });
 
+function useRapidClickToggle(clickCount = 5, timeWindow = 1000) {
+  const [isVisible, setIsVisible] = useState(false);
+  const clickTimestamps = useRef<number[]>([]);
+
+  const handleClick = useCallback(() => {
+    const now = Date.now();
+    clickTimestamps.current.push(now);
+
+    // Keep only clicks within the time window
+    clickTimestamps.current = clickTimestamps.current.filter(
+      (timestamp) => now - timestamp < timeWindow,
+    );
+
+    if (clickTimestamps.current.length >= clickCount) {
+      setIsVisible((prev) => !prev);
+      clickTimestamps.current = [];
+    }
+  }, [clickCount, timeWindow]);
+
+  useEffect(() => {
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [handleClick]);
+
+  return isVisible;
+}
+
 function RootComponent() {
   const [client] = useState<AppRouterClient>(() => createORPCClient(link));
   const [orpcUtils] = useState(() => createTanstackQueryUtils(client));
+  const showDevtools = useRapidClickToggle(3, 1000);
 
   return (
     <>
@@ -54,14 +81,17 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
+        <div className="flex h-svh flex-col">
           <Outlet />
         </div>
         <Toaster richColors />
       </ThemeProvider>
-      <TanStackRouterDevtools position="bottom-left" />
-      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+      {showDevtools && (
+        <>
+          <TanStackRouterDevtools position="bottom-left" />
+          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        </>
+      )}
     </>
   );
 }
