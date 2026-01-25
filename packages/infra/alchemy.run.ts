@@ -2,13 +2,28 @@ import alchemy from "alchemy";
 import { Vite } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
 import { D1Database } from "alchemy/cloudflare";
-import { config } from "dotenv";
+import { CloudflareStateStore } from "alchemy/state";
+import { z } from "zod";
+// import { config } from "dotenv";
 
-config({ path: "./.env" });
-config({ path: "../../apps/web/.env" });
-config({ path: "../../apps/server/.env" });
+// config({ path: "./.env" });
+// config({ path: "../../apps/web/.env" });
+// config({ path: "../../apps/server/.env" });
 
-const app = await alchemy("mana-vault");
+const envSchema = z.object({
+  ALCHEMY_STAGE: z.string().default("local"),
+});
+
+const env = envSchema.parse(process.env);
+const stage = env.ALCHEMY_STAGE;
+
+const app = await alchemy("mana-vault", {
+  stage,
+  stateStore:
+    stage === "local"
+      ? undefined
+      : (scope) => new CloudflareStateStore(scope, { forceUpdate: true }),
+});
 
 const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",

@@ -28,7 +28,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "doppler run -c dev -- turbo dev",
     "build": "turbo build",
     "check-types": "turbo check-types",
     "dev:native": "turbo -F native dev",
@@ -37,6 +37,7 @@
     "db:push": "turbo -F @mana-vault/db db:push",
     "db:generate": "turbo -F @mana-vault/db db:generate",
     "deploy": "turbo -F @mana-vault/infra deploy",
+    "deploy:staging": "doppler run -c stg -- turbo -F @mana-vault/infra deploy",
     "destroy": "turbo -F @mana-vault/infra destroy",
     "check": "oxlint && oxfmt --write"
   },
