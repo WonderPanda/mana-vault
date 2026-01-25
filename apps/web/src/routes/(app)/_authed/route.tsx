@@ -6,10 +6,12 @@ import {
   redirect,
   useMatchRoute,
 } from "@tanstack/react-router";
-import { ChartColumnBig, Layers, ListChecks, Search, User } from "lucide-react";
+import { ChartColumnBig, Layers, ListChecks, Search, Settings, User } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+
+const ADMIN_EMAIL = "jesse@thecarters.cloud";
 
 export const Route = createFileRoute("/(app)/_authed")({
   component: AuthedLayout,
@@ -49,9 +51,12 @@ const navItems = linkOptions([
   { to: "/lists", label: "Lists", icon: ListChecks },
 ]);
 
+const adminNavItem = linkOptions([{ to: "/admin", label: "Admin", icon: Settings }])[0]!;
+
 function AuthedLayout() {
   const { session } = Route.useRouteContext();
   const matchRoute = useMatchRoute();
+  const isAdmin = session.user.email === ADMIN_EMAIL;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
@@ -87,6 +92,22 @@ function AuthedLayout() {
                 </li>
               );
             })}
+            {isAdmin && (
+              <li>
+                <Link
+                  to={adminNavItem.to}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    matchRoute({ to: adminNavItem.to, fuzzy: true })
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
+                  )}
+                >
+                  <adminNavItem.icon className="h-5 w-5" />
+                  {adminNavItem.label}
+                </Link>
+              </li>
+            )}
           </ul>
         </nav>
 
@@ -129,6 +150,22 @@ function AuthedLayout() {
               </li>
             );
           })}
+          {isAdmin && (
+            <li>
+              <Link
+                to={adminNavItem.to}
+                className={cn(
+                  "flex flex-col items-center gap-1 px-4 py-2 text-xs transition-colors",
+                  matchRoute({ to: adminNavItem.to, fuzzy: true })
+                    ? "text-primary"
+                    : "text-muted-foreground",
+                )}
+              >
+                <adminNavItem.icon className="h-5 w-5" />
+                <span>{adminNavItem.label}</span>
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
     </div>

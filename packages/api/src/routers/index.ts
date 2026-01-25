@@ -1,6 +1,7 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
+import { adminRouter } from "./admin";
 import { collectionsRouter } from "./collections";
 import { listsRouter } from "./lists";
 
@@ -14,6 +15,7 @@ export const appRouter = {
       user: context.session?.user,
     };
   }),
+  admin: adminRouter,
   collections: collectionsRouter,
   lists: listsRouter,
 };

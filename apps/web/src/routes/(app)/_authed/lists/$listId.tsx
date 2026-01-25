@@ -1,25 +1,66 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Gift, ListChecks, ShoppingCart, Sparkles } from "lucide-react";
+import { ArrowLeft, Gift, ListChecks, Plus, Search, ShoppingCart, Sparkles, Upload } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
+import { CardImportDialog } from "@/components/card-import-dialog";
+import type { CardImportData } from "@/components/card-import-dialog";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/lists/$listId")({
   component: ListDetailPage,
   beforeLoad: async ({ context: { queryClient }, params }) => {
-    await queryClient.ensureQueryData(
-      orpc.lists.get.queryOptions({ input: { id: params.listId } }),
-    );
+    await Promise.all([
+      queryClient.ensureQueryData(orpc.lists.get.queryOptions({ input: { id: params.listId } })),
+      queryClient.ensureQueryData(
+        orpc.lists.getCards.queryOptions({ input: { listId: params.listId } }),
+      ),
+    ]);
   },
 });
 
 function ListDetailPage() {
   const { listId } = Route.useParams();
   const { data: list } = useSuspenseQuery(orpc.lists.get.queryOptions({ input: { id: listId } }));
+  const { data: cards } = useSuspenseQuery(
+    orpc.lists.getCards.queryOptions({ input: { listId } }),
+  );
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
+  const importMutation = useMutation({
+    ...orpc.lists.importCards.mutationOptions(),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setIsImportOpen(false);
+      // Invalidate queries to refetch the updated data
+      import("@/utils/orpc").then(({ queryClient }) => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.lists.get.queryOptions({ input: { id: listId } }).queryKey,
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.lists.getCards.queryOptions({ input: { listId } }).queryKey,
+        });
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to import cards");
+    },
+  });
+
+  const handleImport = (data: CardImportData) => {
+    importMutation.mutate({
+      listId,
+      csvContent: data.csvContent,
+      format: data.format,
+    });
+  };
 
   const TypeIcon = getSourceTypeIcon(list.sourceType);
 
@@ -44,7 +85,49 @@ function ListDetailPage() {
             </div>
           </div>
         </div>
+        <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+          <PopoverTrigger
+            render={
+              <Button size="icon" className="rounded-full">
+                <Plus className="h-5 w-5" />
+              </Button>
+            }
+          />
+          <PopoverContent align="end" className="w-48 p-1">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                setIsAddMenuOpen(false);
+                // TODO: Open search dialog
+              }}
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Search Cards
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                setIsAddMenuOpen(false);
+                setIsImportOpen(true);
+              }}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import CSV
+            </Button>
+          </PopoverContent>
+        </Popover>
       </PageHeader>
+
+      <CardImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onImport={handleImport}
+        isImporting={importMutation.isPending}
+        title={`Import Cards to "${list.name}"`}
+        description="Import cards from a CSV file or paste CSV content directly."
+      />
 
       <PageContent>
         {/* List metadata */}
@@ -68,15 +151,14 @@ function ListDetailPage() {
           </div>
         </div>
 
-        {/* Cards section - empty state for now since we don't have getCards yet */}
-        {list.cardCount === 0 ? (
-          <EmptyCardsState />
+        {/* Cards section */}
+        {cards.length === 0 ? (
+          <EmptyCardsState onImportClick={() => setIsImportOpen(true)} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {/* Cards will be displayed here once getCards is implemented */}
-            <p className="col-span-full text-center text-muted-foreground">
-              {list.cardCount} cards in this list
-            </p>
+            {cards.map((card) => (
+              <ListCardItem key={card.id} card={card} />
+            ))}
           </div>
         )}
       </PageContent>
@@ -112,16 +194,72 @@ function getSourceTypeLabel(sourceType: string | null): string {
   }
 }
 
-function EmptyCardsState() {
+type ListCard = Awaited<
+  ReturnType<ReturnType<typeof orpc.lists.getCards.queryOptions>["queryFn"]>
+>[number];
+
+function ListCardItem({ card }: { card: ListCard }) {
+  const { scryfallCard, collectionCard } = card;
+
+  return (
+    <Card className="overflow-hidden">
+      {scryfallCard.imageUri ? (
+        <img
+          src={scryfallCard.imageUri}
+          alt={scryfallCard.name}
+          className="aspect-[488/680] w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex aspect-[488/680] w-full items-center justify-center bg-muted">
+          <span className="text-muted-foreground">No image</span>
+        </div>
+      )}
+      <CardContent className="p-3">
+        <h4 className="truncate font-medium">{scryfallCard.name}</h4>
+        <p className="truncate text-xs text-muted-foreground">
+          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #{scryfallCard.collectorNumber}
+        </p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {collectionCard.isFoil && (
+            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              Foil
+            </span>
+          )}
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+            {collectionCard.condition}
+          </span>
+          {collectionCard.language !== "en" && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase">
+              {collectionCard.language}
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyCardsState({ onImportClick }: { onImportClick: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
         <ListChecks className="h-8 w-8 text-muted-foreground" />
       </div>
       <h3 className="mb-2 text-lg font-semibold">No cards yet</h3>
-      <p className="max-w-sm text-muted-foreground">
-        This list is empty. Add cards from your collection to track them in this list.
+      <p className="mb-6 max-w-sm text-muted-foreground">
+        This list is empty. Add cards from your collection or import them from a CSV file.
       </p>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onImportClick}>
+          <Upload className="mr-2 h-4 w-4" />
+          Import CSV
+        </Button>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Cards
+        </Button>
+      </div>
     </div>
   );
 }

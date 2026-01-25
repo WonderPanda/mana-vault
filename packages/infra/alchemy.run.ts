@@ -1,7 +1,7 @@
 import alchemy from "alchemy";
 import { Vite } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
-import { D1Database } from "alchemy/cloudflare";
+import { D1Database, R2Bucket } from "alchemy/cloudflare";
 import { CloudflareStateStore } from "alchemy/state";
 import { z } from "zod";
 
@@ -24,6 +24,10 @@ const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",
 });
 
+const scryfallDataBucket = await R2Bucket("scryfall-data", {
+  name: "scryfall-data",
+});
+
 export const web = await Vite("web", {
   cwd: "../../apps/web",
   assets: "dist",
@@ -43,6 +47,7 @@ export const server = await Worker("server", {
     BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,
     POLAR_ACCESS_TOKEN: alchemy.secret.env.POLAR_ACCESS_TOKEN!,
     POLAR_SUCCESS_URL: alchemy.env.POLAR_SUCCESS_URL!,
+    SCRYFALL_DATA: scryfallDataBucket,
   },
   dev: {
     port: 3000,

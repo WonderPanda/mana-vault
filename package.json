@@ -38,9 +38,10 @@
     "db:generate": "turbo -F @mana-vault/db db:generate",
     "deploy": "turbo -F @mana-vault/infra deploy",
     "deploy:staging": "doppler run -c stg -- turbo -F @mana-vault/infra deploy",
-    "destroy": "turbo -F @mana-vault/infra destroy",
+    "destroy": "doppler run -c dev -- turbo -F @mana-vault/infra destroy",
     "check": "oxlint && oxfmt --check .",
-    "format": "oxfmt --write ."
+    "format": "oxfmt --write .",
+    "download:scryfall": "bun run scripts/download-scryfall-data.ts"
   },
   "dependencies": {
     "@mana-vault/env": "workspace:*",
