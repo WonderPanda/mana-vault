@@ -4,11 +4,6 @@ import { Worker } from "alchemy/cloudflare";
 import { D1Database } from "alchemy/cloudflare";
 import { CloudflareStateStore } from "alchemy/state";
 import { z } from "zod";
-// import { config } from "dotenv";
-
-// config({ path: "./.env" });
-// config({ path: "../../apps/web/.env" });
-// config({ path: "../../apps/server/.env" });
 
 const envSchema = z.object({
   ALCHEMY_STAGE: z.string().default("local"),
