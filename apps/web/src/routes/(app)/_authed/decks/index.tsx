@@ -28,23 +28,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc, queryClient } from "@/utils/orpc";
 import { sum, useLiveQuery } from "@tanstack/react-db";
+import { useDbCollections } from "@/lib/db/db-context";
 
 export const Route = createFileRoute("/(app)/_authed/decks/")({
   component: DecksPage,
-  // TODO: Remove
-  // beforeLoad: async ({ context: { queryClient } }) => {
-  //   await queryClient.ensureQueryData(orpc.decks.list.queryOptions());
-  // },
-  loader: ({
-    context: {
-      db: { deckCollection, deckCardCollection },
-    },
-  }) => {
-    return {
-      deckCollection,
-      deckCardCollection,
-    };
-  },
 });
 
 type DeckFormat = "commander" | "standard" | "modern" | "legacy" | "pioneer" | "pauper" | "other";
@@ -52,13 +39,12 @@ type DeckStatus = "active" | "retired" | "in_progress" | "theorycraft";
 type DeckArchetype = "aggro" | "control" | "combo" | "midrange" | "tempo" | "other";
 
 function DecksPage() {
-  const { deckCollection, deckCardCollection } = Route.useLoaderData();
+  const { deckCardCollection, deckCollection } = useDbCollections();
 
-  const { data: decks } = useSuspenseQuery(orpc.decks.list.queryOptions());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // TODO: Could we do this as a join?
-  const { data: liveDecks } = useLiveQuery((q) => q.from({ deck: deckCollection }));
+  const { data: decks } = useLiveQuery((q) => q.from({ deck: deckCollection }));
   const { data: deckCardCount } = useLiveQuery((q) =>
     q
       .from({ deckCard: deckCardCollection })
@@ -90,7 +76,7 @@ function DecksPage() {
           <EmptyDecksState onCreateClick={() => setIsCreateOpen(true)} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {liveDecks.map((deck) => (
+            {decks.map((deck) => (
               <DeckCard
                 key={deck.id}
                 deck={{

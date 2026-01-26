@@ -31,7 +31,6 @@ import {
   useDeckCardCount,
   useDeckCards,
   useDeckCardsByCategory,
-  useGroupedDeckCards,
   type CardCategory,
 } from "@/hooks/use-deck-cards-by-category";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -57,12 +56,13 @@ function DeckDetailPage() {
     onSuccess: (data) => {
       toast.success(data.message);
       setIsImportOpen(false);
-      queryClient.invalidateQueries({
-        queryKey: orpc.decks.get.queryOptions({ input: { id: deckId } }).queryKey,
-      });
-      queryClient.invalidateQueries({
-        queryKey: orpc.decks.getCards.queryOptions({ input: { deckId } }).queryKey,
-      });
+      // TODO: Remove
+      // queryClient.invalidateQueries({
+      //   queryKey: orpc.decks.get.queryOptions({ input: { id: deckId } }).queryKey,
+      // });
+      // queryClient.invalidateQueries({
+      //   queryKey: orpc.decks.getCards.queryOptions({ input: { deckId } }).queryKey,
+      // });
     },
     onError: (error) => {
       toast.error(error.message || "Failed to import cards");
