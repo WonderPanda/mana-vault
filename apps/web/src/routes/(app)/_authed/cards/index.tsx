@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useLiveQuery, sum } from "@tanstack/react-db";
+import { useLiveQuery, sum, eq } from "@tanstack/react-db";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BookOpen, Box, ChevronRight, Plus, Square } from "lucide-react";
 import { useState } from "react";
