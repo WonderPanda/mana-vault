@@ -10,14 +10,19 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { EmptyCardsState } from "@/components/empty-cards-state";
-import { MtgCardGrid, MtgCardGridSkeleton, MtgCardItem } from "@/components/mtg-card-grid";
+import {
+  MtgCardGridSkeleton,
+  MtgCardViewToggle,
+  VirtualizedMtgCardGrid,
+  type MtgCardViewMode,
+} from "@/components/mtg-card-grid";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +48,8 @@ function CollectionDetailPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const importMutation = useMutation({
     ...orpc.collections.importCards.mutationOptions(),
@@ -182,7 +189,7 @@ function CollectionDetailPage() {
         warningMessage="This will permanently delete the collection. Cards in this collection will become unassigned but will NOT be deleted from your collection."
       />
 
-      <PageContent>
+      <PageContent ref={scrollContainerRef}>
         {cards.length === 0 ? (
           <EmptyCardsState
             variant="collection"
@@ -192,27 +199,30 @@ function CollectionDetailPage() {
             }}
           />
         ) : (
-          <MtgCardGrid>
-            {cards.map((card) => (
-              <MtgCardItem
-                key={card.id}
-                card={{
-                  id: card.id,
-                  scryfallCard: {
-                    name: card.scryfallCard.name,
-                    setCode: card.scryfallCard.setCode,
-                    setName: card.scryfallCard.setName,
-                    collectorNumber: card.scryfallCard.collectorNumber,
-                    imageUri: card.scryfallCard.imageUri,
-                  },
-                  condition: card.condition,
-                  isFoil: card.isFoil,
-                  language: card.language,
-                  isInCollection: true,
-                }}
-              />
-            ))}
-          </MtgCardGrid>
+          <>
+            <div className="mb-4 flex justify-end">
+              <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
+            </div>
+            <VirtualizedMtgCardGrid
+              view={viewMode}
+              scrollElementRef={scrollContainerRef}
+              cards={cards.map((card) => ({
+                id: card.id,
+                scryfallCard: {
+                  name: card.scryfallCard.name,
+                  setCode: card.scryfallCard.setCode,
+                  setName: card.scryfallCard.setName,
+                  collectorNumber: card.scryfallCard.collectorNumber,
+                  imageUri: card.scryfallCard.imageUri,
+                  manaCost: card.scryfallCard.manaCost,
+                },
+                condition: card.condition,
+                isFoil: card.isFoil,
+                language: card.language,
+                isInCollection: true,
+              }))}
+            />
+          </>
         )}
       </PageContent>
     </PageLayout>

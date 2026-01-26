@@ -1,6 +1,8 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Grid2X2, List } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useRef, useState } from "react";
 
+import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 
 import { ManaCost } from "./mana-cost";
@@ -62,12 +64,124 @@ export function MtgCardViewToggle({ view, onViewChange, className }: MtgCardView
   );
 }
 
+// Estimated row heights for virtualization
+const GRID_ROW_HEIGHT = 320; // Card aspect ratio (680/488) * width + gap + content
+const LIST_ROW_HEIGHT = 36; // Single list item height
+
+interface VirtualizedMtgCardGridProps {
+  cards: MtgCardData[];
+  view?: MtgCardViewMode;
+  className?: string;
+  /** Ref to the scroll container element. If not provided, uses an internal container. */
+  scrollElementRef?: React.RefObject<HTMLElement | null>;
+  /** Callback when a card is clicked */
+  onCardClick?: (card: MtgCardData) => void;
+}
+
+/**
+ * Virtualized card grid/list component for rendering large card collections efficiently.
+ * Supports both grid and list view modes with automatic virtualization.
+ */
+export function VirtualizedMtgCardGrid({
+  cards,
+  view = "grid",
+  className,
+  scrollElementRef,
+  onCardClick,
+}: VirtualizedMtgCardGridProps) {
+  const columns = useGridColumns();
+
+  // For grid view, we virtualize rows (each containing multiple cards)
+  // For list view, we virtualize individual items
+  const itemCount = view === "grid" ? Math.ceil(cards.length / columns) : cards.length;
+  const estimatedSize = view === "grid" ? GRID_ROW_HEIGHT : LIST_ROW_HEIGHT;
+
+  const virtualizer = useVirtualizer({
+    count: itemCount,
+    getScrollElement: () => scrollElementRef?.current ?? null,
+    estimateSize: () => estimatedSize,
+    overscan: view === "grid" ? 2 : 5,
+  });
+
+  return (
+    <div className={className}>
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          if (view === "list") {
+            const card = cards[virtualItem.index];
+            if (!card) return null;
+
+            return (
+              <div
+                key={virtualItem.key}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualItem.size}px`,
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                <MtgCardItem
+                  card={card}
+                  view="list"
+                  onClick={onCardClick ? () => onCardClick(card) : undefined}
+                />
+              </div>
+            );
+          }
+
+          // Grid view: render a row of cards
+          const startIndex = virtualItem.index * columns;
+          const rowCards = cards.slice(startIndex, startIndex + columns);
+
+          return (
+            <div
+              key={virtualItem.key}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+                {rowCards.map((card) => (
+                  <MtgCardItem
+                    key={card.id}
+                    card={card}
+                    view="grid"
+                    onClick={onCardClick ? () => onCardClick(card) : undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface MtgCardGridProps {
-  children: ReactNode;
+  children: React.ReactNode;
   className?: string;
   view?: MtgCardViewMode;
 }
 
+/**
+ * Simple non-virtualized card grid for small card lists.
+ * For large lists, use VirtualizedMtgCardGrid instead.
+ */
 export function MtgCardGrid({ children, className, view = "grid" }: MtgCardGridProps) {
   if (view === "list") {
     return <div className={cn("flex flex-col", className)}>{children}</div>;
