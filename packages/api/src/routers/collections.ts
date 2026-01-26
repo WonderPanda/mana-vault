@@ -23,9 +23,9 @@ function isForeignKeyError(error: unknown): boolean {
 }
 
 /**
- * Supported CSV format identifiers for card imports.
+ * Supported format identifiers for card imports.
  */
-const csvFormatSchema = z.enum(["manabox"]);
+const importFormatSchema = z.enum(["manabox", "moxfield"]);
 
 export const collectionsRouter = {
   // List all collections for the current user with card counts
@@ -150,8 +150,8 @@ export const collectionsRouter = {
         collectionId: z.string().optional(),
         /** Raw CSV content (either pasted or from file) */
         csvContent: z.string().min(1, "CSV content is required"),
-        /** The format of the CSV for selecting the appropriate parser */
-        format: csvFormatSchema,
+        /** The format for selecting the appropriate parser */
+        format: importFormatSchema,
       }),
     )
     .handler(async ({ context, input }) => {

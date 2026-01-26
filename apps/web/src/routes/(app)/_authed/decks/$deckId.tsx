@@ -8,7 +8,13 @@ import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { EmptyCardsState } from "@/components/empty-cards-state";
-import { MtgCardGrid, MtgCardGridSkeleton, MtgCardItem } from "@/components/mtg-card-grid";
+import {
+  MtgCardGrid,
+  MtgCardGridSkeleton,
+  MtgCardItem,
+  MtgCardViewToggle,
+  type MtgCardViewMode,
+} from "@/components/mtg-card-grid";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +47,7 @@ function DeckDetailPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
 
   const importMutation = useMutation({
     ...orpc.decks.importCards.mutationOptions(),
@@ -222,11 +229,16 @@ function DeckDetailPage() {
             }}
           />
         ) : (
-          <MtgCardGrid>
-            {cards.map((card) => (
-              <MtgCardItem key={card.id} card={card} />
-            ))}
-          </MtgCardGrid>
+          <>
+            <div className="mb-4 flex justify-end">
+              <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
+            </div>
+            <MtgCardGrid view={viewMode}>
+              {cards.map((card) => (
+                <MtgCardItem key={card.id} card={card} view={viewMode} />
+              ))}
+            </MtgCardGrid>
+          </>
         )}
       </PageContent>
     </PageLayout>

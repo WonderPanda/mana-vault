@@ -6,6 +6,8 @@ import z from "zod";
 
 import { protectedProcedure } from "../index";
 import { parseManaBoxCSV } from "../parsers/manabox";
+import { parseMoxfieldText } from "../parsers/moxfield";
+import { lookupScryfallCard } from "../utils/scryfall-lookup";
 
 /**
  * Check if an error is a SQLite foreign key constraint violation
@@ -19,9 +21,9 @@ function isForeignKeyError(error: unknown): boolean {
 }
 
 /**
- * Supported CSV format identifiers for card imports.
+ * Supported format identifiers for card imports.
  */
-const csvFormatSchema = z.enum(["manabox"]);
+const importFormatSchema = z.enum(["manabox", "moxfield"]);
 
 /**
  * Deck format options
@@ -160,7 +162,7 @@ export const decksRouter = {
         /** Raw CSV content (either pasted or from file) */
         csvContent: z.string().min(1, "CSV content is required"),
         /** The format of the CSV for selecting the appropriate parser */
-        format: csvFormatSchema,
+        format: importFormatSchema,
       }),
     )
     .handler(async ({ context, input }) => {
@@ -176,63 +178,117 @@ export const decksRouter = {
         throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
       }
 
-      // Parse the CSV based on format
-      const parseResult = parseManaBoxCSV(input.csvContent);
-
-      if (parseResult.rows.length === 0) {
-        throw new ORPCError("BAD_REQUEST", {
-          message:
-            parseResult.errors.length > 0
-              ? `Failed to parse CSV: ${parseResult.errors[0]?.error}`
-              : "No valid rows found in CSV",
-        });
-      }
-
       let importedCount = 0;
       let skippedCount = 0;
+      let parseErrorCount = 0;
+      let totalQuantity = 0;
 
-      // Import cards - we need to look up the oracle_id from the scryfall card
-      for (const row of parseResult.rows) {
-        try {
-          // Look up the scryfall card to get the oracle_id
-          const [card] = await db
-            .select({
-              id: scryfallCard.id,
-              oracleId: scryfallCard.oracleId,
-            })
-            .from(scryfallCard)
-            .where(eq(scryfallCard.id, row.scryfallId));
+      if (input.format === "manabox") {
+        // Parse the CSV based on ManaBox format
+        const parseResult = parseManaBoxCSV(input.csvContent);
+        parseErrorCount = parseResult.errors.length;
 
-          if (!card) {
+        if (parseResult.rows.length === 0) {
+          throw new ORPCError("BAD_REQUEST", {
+            message:
+              parseResult.errors.length > 0
+                ? `Failed to parse CSV: ${parseResult.errors[0]?.error}`
+                : "No valid rows found in CSV",
+          });
+        }
+
+        totalQuantity = parseResult.rows.reduce((sum, row) => sum + row.quantity, 0);
+
+        // Import cards - we need to look up the oracle_id from the scryfall card
+        for (const row of parseResult.rows) {
+          try {
+            // Look up the scryfall card to get the oracle_id
+            const [card] = await db
+              .select({
+                id: scryfallCard.id,
+                oracleId: scryfallCard.oracleId,
+              })
+              .from(scryfallCard)
+              .where(eq(scryfallCard.id, row.scryfallId));
+
+            if (!card) {
+              skippedCount++;
+              console.warn(`Skipping card not found in database: ${row.scryfallId}`);
+              continue;
+            }
+
+            await db.insert(deckCard).values({
+              deckId: input.deckId,
+              oracleId: card.oracleId,
+              preferredScryfallId: row.scryfallId,
+              quantity: row.quantity,
+              board: "main",
+              isCommander: false,
+              isCompanion: false,
+              isProxy: false,
+            });
+
+            importedCount += row.quantity;
+          } catch (error) {
+            if (isForeignKeyError(error)) {
+              skippedCount++;
+              console.warn(`Skipping card with FK error: ${row.scryfallId}`);
+            } else {
+              throw error;
+            }
+          }
+        }
+      } else if (input.format === "moxfield") {
+        // Parse the text based on Moxfield format
+        const parseResult = parseMoxfieldText(input.csvContent);
+        parseErrorCount = parseResult.errors.length;
+
+        if (parseResult.rows.length === 0) {
+          throw new ORPCError("BAD_REQUEST", {
+            message:
+              parseResult.errors.length > 0
+                ? `Failed to parse: ${parseResult.errors[0]?.error}`
+                : "No valid rows found",
+          });
+        }
+
+        totalQuantity = parseResult.stats.totalQuantity;
+
+        // For Moxfield, we need to look up cards by set code + collector number
+        for (const row of parseResult.rows) {
+          const foundCard = await lookupScryfallCard(row);
+
+          if (!foundCard) {
             skippedCount++;
-            console.warn(`Skipping card not found in database: ${row.scryfallId}`);
+            console.warn(
+              `Card not found in database: ${row.name} (${row.setCode}) ${row.collectorNumber}`,
+            );
             continue;
           }
 
-          await db.insert(deckCard).values({
-            deckId: input.deckId,
-            oracleId: card.oracleId,
-            preferredScryfallId: row.scryfallId,
-            quantity: row.quantity,
-            board: "main", // Default to main board
-            isCommander: false,
-            isCompanion: false,
-            isProxy: false,
-          });
+          try {
+            await db.insert(deckCard).values({
+              deckId: input.deckId,
+              oracleId: foundCard.oracleId,
+              preferredScryfallId: foundCard.id,
+              quantity: row.quantity,
+              board: "main",
+              isCommander: false,
+              isCompanion: false,
+              isProxy: false,
+            });
 
-          importedCount += row.quantity;
-        } catch (error) {
-          // Skip cards that cause foreign key errors
-          if (isForeignKeyError(error)) {
-            skippedCount++;
-            console.warn(`Skipping card with FK error: ${row.scryfallId}`);
-          } else {
-            throw error;
+            importedCount += row.quantity;
+          } catch (error) {
+            if (isForeignKeyError(error)) {
+              skippedCount++;
+              console.warn(`Skipping card with FK error: ${foundCard.id}`);
+            } else {
+              throw error;
+            }
           }
         }
       }
-
-      const totalQuantity = parseResult.rows.reduce((sum, row) => sum + row.quantity, 0);
 
       return {
         deckId: input.deckId,
@@ -240,10 +296,10 @@ export const decksRouter = {
         imported: importedCount,
         totalQuantity,
         skipped: skippedCount,
-        parseErrors: parseResult.errors.length,
+        parseErrors: parseErrorCount,
         message:
           skippedCount > 0
-            ? `Successfully imported ${importedCount} cards. ${skippedCount} cards skipped (invalid Scryfall IDs).`
+            ? `Successfully imported ${importedCount} cards. ${skippedCount} cards skipped (not found in database).`
             : `Successfully imported ${importedCount} cards`,
       };
     }),

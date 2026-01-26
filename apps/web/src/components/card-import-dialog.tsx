@@ -199,7 +199,7 @@ export function CardImportDialog({
                     placeholder="Paste your content here..."
                     value={csvContent}
                     onChange={(e) => setCsvContent(e.target.value)}
-                    className="min-h-[200px] font-mono text-xs"
+                    className="min-h-[200px] max-h-[300px] resize-none font-mono text-xs"
                   />
                 </div>
               </TabsContent>
@@ -223,7 +223,7 @@ export function CardImportDialog({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.txt"
                       onChange={handleFileInputChange}
                       className="hidden"
                     />

@@ -10,6 +10,7 @@ import { ChartColumnBig, Layers, ListChecks, Search, Settings, User } from "luci
 
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { getOrCreateDb } from "@/lib/db/db";
 
 const ADMIN_EMAIL = "jesse@thecarters.cloud";
 
@@ -42,7 +43,9 @@ export const Route = createFileRoute("/(app)/_authed")({
       queryFn: () => authClient.customer.state().then((res) => res.data),
     });
 
-    return { session: session.data, customerState };
+    const db = await getOrCreateDb();
+
+    return { session: session.data, customerState, db };
   },
 });
 
