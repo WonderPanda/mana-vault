@@ -1,11 +1,12 @@
 import { Grid2X2, List } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { ManaCost } from "./mana-cost";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
+import { Dialog, DialogContent } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
 
 export type MtgCardViewMode = "grid" | "list";
@@ -87,29 +88,59 @@ interface MtgCardItemProps {
 
 export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) {
   const { scryfallCard, condition, isFoil, language, quantity } = card;
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
 
   if (view === "list") {
     return (
-      <div
-        className={cn(
-          "flex items-center justify-between gap-2 border-b border-border/50 px-2 py-1.5 hover:bg-muted/50",
-          onClick && "cursor-pointer",
-        )}
-        onClick={onClick}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="w-5 shrink-0 text-right text-sm text-muted-foreground">
-            {quantity ?? 1}
-          </span>
-          <span className="truncate text-sm">{scryfallCard.name}</span>
-          {isFoil && (
-            <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              F
-            </span>
+      <>
+        <div
+          className={cn(
+            "flex cursor-pointer items-center justify-between gap-2 border-b border-border/50 px-2 py-1.5 hover:bg-muted/50",
           )}
+          onClick={() => {
+            if (onClick) {
+              onClick();
+            } else {
+              setIsImageDialogOpen(true);
+            }
+          }}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="w-5 shrink-0 text-right text-sm text-muted-foreground">
+              {quantity ?? 1}
+            </span>
+            <span className="truncate text-sm">{scryfallCard.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {scryfallCard.setCode.toUpperCase()} #{scryfallCard.collectorNumber}
+            </span>
+            {isFoil && (
+              <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                F
+              </span>
+            )}
+          </div>
+          <ManaCost cost={scryfallCard.manaCost} className="shrink-0" />
         </div>
-        <ManaCost cost={scryfallCard.manaCost} className="shrink-0" />
-      </div>
+
+        <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+          <DialogContent
+            className="max-w-[350px] bg-transparent p-0 ring-0 sm:max-w-[350px]"
+            showCloseButton={false}
+          >
+            {scryfallCard.imageUri ? (
+              <img
+                src={scryfallCard.imageUri}
+                alt={scryfallCard.name}
+                className="w-full rounded-lg"
+              />
+            ) : (
+              <div className="flex aspect-[488/680] w-full items-center justify-center rounded-lg bg-muted">
+                <span className="text-muted-foreground">No image available</span>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
