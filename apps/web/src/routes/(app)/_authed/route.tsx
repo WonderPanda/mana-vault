@@ -5,8 +5,18 @@ import {
   linkOptions,
   redirect,
   useMatchRoute,
+  useNavigate,
 } from "@tanstack/react-router";
-import { ChartColumnBig, Layers, ListChecks, Settings, User } from "lucide-react";
+import { ChartColumnBig, Layers, ListChecks, LogOut, Settings, User } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 import { authClient } from "@/lib/auth-client";
 import { DbProvider } from "@/lib/db/db-context";
@@ -74,7 +84,18 @@ const adminNavItem = linkOptions([{ to: "/admin", label: "Admin", icon: Settings
 function AuthedLayout() {
   const { session, db } = Route.useRouteContext();
   const matchRoute = useMatchRoute();
+  const navigate = useNavigate();
   const isAdmin = session.user.email === ADMIN_EMAIL;
+
+  const handleSignOut = () => {
+    authClient.signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          navigate({ to: "/login" });
+        },
+      },
+    });
+  };
 
   return (
     <DbProvider db={db}>
@@ -132,15 +153,31 @@ function AuthedLayout() {
 
           {/* User info at bottom */}
           <div className="border-t p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-                <User className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div className="flex-1 truncate">
-                <div className="truncate text-sm font-medium">{session.user.name}</div>
-                <div className="truncate text-xs text-muted-foreground">{session.user.email}</div>
-              </div>
-            </div>
+            <Popover>
+              <PopoverTrigger className="flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 truncate text-left">
+                  <div className="truncate text-sm font-medium">{session.user.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{session.user.email}</div>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-56">
+                <PopoverHeader>
+                  <PopoverTitle>Account</PopoverTitle>
+                </PopoverHeader>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </Button>
+              </PopoverContent>
+            </Popover>
           </div>
         </aside>
 
@@ -185,6 +222,29 @@ function AuthedLayout() {
                 </Link>
               </li>
             )}
+            <li>
+              <Popover>
+                <PopoverTrigger className="flex flex-col items-center gap-1 px-4 py-2 text-xs text-muted-foreground transition-colors">
+                  <User className="h-5 w-5" />
+                  <span>Account</span>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-56">
+                  <PopoverHeader>
+                    <PopoverTitle>{session.user.name}</PopoverTitle>
+                    <p className="text-muted-foreground">{session.user.email}</p>
+                  </PopoverHeader>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </Button>
+                </PopoverContent>
+              </Popover>
+            </li>
           </ul>
         </nav>
       </div>
