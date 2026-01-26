@@ -146,6 +146,8 @@ export const collectionCard = sqliteTable(
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .$onUpdate(() => new Date())
       .notNull(),
+    /** Soft delete timestamp - when set, the card is considered deleted for sync purposes */
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     index("collection_card_user_id_idx").on(table.userId),
@@ -179,6 +181,8 @@ export const storageContainer = sqliteTable(
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .$onUpdate(() => new Date())
       .notNull(),
+    /** Soft delete timestamp - when set, the container is considered deleted */
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
   },
   (table) => [index("storage_container_user_id_idx").on(table.userId)],
 );
@@ -200,6 +204,10 @@ export const collectionCardLocation = sqliteTable(
     assignedAt: integer("assigned_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
+    /** Updated timestamp for sync - tracks when location was last modified. Falls back to assignedAt if null. */
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).$onUpdate(() => new Date()),
+    /** Soft delete timestamp - when set, the location is considered deleted */
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     index("collection_card_location_card_idx").on(table.collectionCardId),

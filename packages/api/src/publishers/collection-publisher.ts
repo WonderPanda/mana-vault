@@ -193,6 +193,7 @@ export interface CollectionCardLocationReplicationDoc {
   storageContainerId: string | null;
   deckId: string | null;
   assignedAt: number;
+  updatedAt: number;
   _deleted: boolean;
 }
 
@@ -226,6 +227,7 @@ export function toCollectionCardLocationReplicationDoc(
     storageContainerId: string | null;
     deckId: string | null;
     assignedAt: Date;
+    updatedAt: Date | null;
   },
   deleted = false,
 ): CollectionCardLocationReplicationDoc {
@@ -235,6 +237,7 @@ export function toCollectionCardLocationReplicationDoc(
     storageContainerId: doc.storageContainerId,
     deckId: doc.deckId,
     assignedAt: doc.assignedAt.getTime(),
+    updatedAt: doc.updatedAt?.getTime() ?? doc.assignedAt.getTime(),
     _deleted: deleted,
   };
 }

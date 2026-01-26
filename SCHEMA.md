@@ -517,7 +517,14 @@ Price data for cards from various sources.
 
 7. **Soft deletes via status field**: Collection cards are never hard-deleted. The `status` field tracks lifecycle (owned, traded, sold, lost) and `removed_at` records when the card left your collection. This enables searching for any card you've ever owned and seeing its full history ("I had this but traded it to X on Y date").
 
-8. **Lists are separate from Collection**: Virtual lists (`virtual_list` + `virtual_list_card`) are staging areas and historical records, NOT the source of truth for owned cards. Key principles:
+8. **Soft deletes for sync (`deleted_at` column)**: For RxDB replication to properly handle deletions, the following tables include a `deleted_at` timestamp column:
+   - `collection_card` - marks card as deleted for sync purposes
+   - `collection_card_location` - marks location assignment as deleted
+   - `storage_container` - marks container as deleted
+
+   When `deleted_at` is set, the sync pull handlers return the record with `_deleted: true`, allowing IndexedDB clients to remove the record. This is separate from the `status` field semantic - a card can be "traded" (status) but still exist for historical viewing, while `deleted_at` means "remove from client entirely."
+
+9. **Lists are separate from Collection**: Virtual lists (`virtual_list` + `virtual_list_card`) are staging areas and historical records, NOT the source of truth for owned cards. Key principles:
    - Lists reference Scryfall cards directly via `scryfall_card_id`
    - Collection cards are only created when user explicitly "moves to collection"
    - Deleting a list **never** deletes collection cards

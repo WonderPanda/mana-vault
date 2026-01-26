@@ -1,4 +1,5 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
+import { useLiveQuery, sum } from "@tanstack/react-db";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BookOpen, Box, ChevronRight, Plus, Square } from "lucide-react";
 import { useState } from "react";
@@ -25,18 +26,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDbCollections } from "@/lib/db/db-context";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/cards/")({
   component: CardsPage,
-  beforeLoad: async ({ context: { queryClient } }) => {
-    await queryClient.ensureQueryData(orpc.collections.list.queryOptions());
-  },
 });
 
 function CardsPage() {
-  const { data: collections } = useSuspenseQuery(orpc.collections.list.queryOptions());
+  const { storageContainerCollection, collectionCardLocationCollection } = useDbCollections();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Query storage containers from local IndexedDB
+  const { data: containers } = useLiveQuery((q) =>
+    q.from({ container: storageContainerCollection }),
+  );
+
+  // Query card counts per container (group by storageContainerId, null values become their own group)
+  const { data: cardCounts } = useLiveQuery((q) =>
+    q
+      .from({ location: collectionCardLocationCollection })
+      .groupBy(({ location }) => location.storageContainerId)
+      .select(({ location }) => ({
+        storageContainerId: location.storageContainerId,
+        cardCount: sum(1),
+      })),
+  );
+
+  // Transform to the expected format
+  const collections = containers.map((container) => ({
+    ...container,
+    createdAt: new Date(container.createdAt),
+    updatedAt: new Date(container.updatedAt),
+    cardCount: cardCounts.find((cc) => cc.storageContainerId === container.id)?.cardCount ?? 0,
+  }));
 
   return (
     <PageLayout>

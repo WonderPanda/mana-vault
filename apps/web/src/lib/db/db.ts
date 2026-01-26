@@ -1,10 +1,10 @@
-import { createRxDatabase } from "rxdb/plugins/core";
+import { createRxDatabase, addRxPlugin } from "rxdb/plugins/core";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { createCollection } from "@tanstack/react-db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 
 import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
-import type { RxReplicationState } from "rxdb/plugins/replication";
 
 import {
   setupDeckReplication,
@@ -16,6 +16,9 @@ import {
 } from "./replication";
 import type { ReplicationCheckpoint } from "./replication";
 import { client } from "@/utils/orpc";
+
+// Add migration plugin for schema version changes
+addRxPlugin(RxDBMigrationSchemaPlugin);
 
 // =============================================================================
 // Schema Definitions
@@ -187,7 +190,7 @@ const storageContainerSchema: RxJsonSchema<StorageContainerDoc> = {
 };
 
 const collectionCardLocationSchema: RxJsonSchema<CollectionCardLocationDoc> = {
-  version: 0,
+  version: 1, // Bumped version to handle new updatedAt field
   primaryKey: "id",
   type: "object",
   properties: {
@@ -196,6 +199,7 @@ const collectionCardLocationSchema: RxJsonSchema<CollectionCardLocationDoc> = {
     storageContainerId: { type: ["string", "null"] },
     deckId: { type: ["string", "null"] },
     assignedAt: { type: "number" },
+    updatedAt: { type: "number" }, // Used for sync checkpoint
     _deleted: { type: "boolean" }, // Required for RxDB replication
   },
   required: ["id", "collectionCardId", "assignedAt", "_deleted"],
@@ -286,6 +290,7 @@ export interface CollectionCardLocationDoc {
   storageContainerId: string | null;
   deckId: string | null;
   assignedAt: number;
+  updatedAt?: number; // Used for sync checkpoint (optional for backwards compat)
   _deleted: boolean; // Required for RxDB replication
 }
 
@@ -347,6 +352,13 @@ async function initializeDb() {
     },
     collection_card_locations: {
       schema: collectionCardLocationSchema,
+      // Migration from version 0 to 1: add updatedAt field (defaults to assignedAt)
+      migrationStrategies: {
+        1: (oldDoc) => ({
+          ...oldDoc,
+          updatedAt: oldDoc.updatedAt ?? oldDoc.assignedAt,
+        }),
+      },
     },
     storage_containers: {
       schema: storageContainerSchema,

@@ -45,6 +45,35 @@ function isForeignKeyError(error: unknown): boolean {
 }
 
 /**
+ * Check if an error is a SQLite unique constraint violation
+ */
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes("UNIQUE constraint failed") ||
+      error.message.includes("SQLITE_CONSTRAINT_UNIQUE"))
+  );
+}
+
+/**
+ * Extract detailed error information for logging/debugging
+ */
+function getDetailedErrorInfo(error: unknown): {
+  message: string;
+  code?: string;
+  cause?: string;
+} {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      code: (error as Error & { code?: string }).code,
+      cause: error.cause ? String(error.cause) : undefined,
+    };
+  }
+  return { message: String(error) };
+}
+
+/**
  * Supported format identifiers for card imports.
  */
 const importFormatSchema = z.enum(["manabox", "moxfield"]);
@@ -246,10 +275,41 @@ export const collectionsRouter = {
 
             // If a collection ID is provided, create a location entry
             if (input.collectionId && newCard) {
-              await db.insert(collectionCardLocation).values({
-                collectionCardId: newCard.id,
-                storageContainerId: input.collectionId,
-              });
+              try {
+                await db.insert(collectionCardLocation).values({
+                  collectionCardId: newCard.id,
+                  storageContainerId: input.collectionId,
+                });
+              } catch (locationError) {
+                // Log detailed error information for debugging
+                const errorInfo = getDetailedErrorInfo(locationError);
+                console.error(
+                  `Failed to create location for card ${newCard.id}:`,
+                  JSON.stringify(errorInfo, null, 2),
+                );
+
+                if (isUniqueConstraintError(locationError)) {
+                  // This shouldn't happen for newly created cards, but log it if it does
+                  console.error(
+                    `Unique constraint violation: card ${newCard.id} already has a location entry`,
+                  );
+                } else if (isForeignKeyError(locationError)) {
+                  console.error(
+                    `Foreign key error for location: collectionCardId=${newCard.id}, storageContainerId=${input.collectionId}`,
+                  );
+                }
+
+                // Re-throw with more context
+                throw new ORPCError("INTERNAL_SERVER_ERROR", {
+                  message: `Failed to assign card to collection: ${errorInfo.message}`,
+                  cause: {
+                    operation: "insert_collection_card_location",
+                    collectionCardId: newCard.id,
+                    storageContainerId: input.collectionId,
+                    originalError: errorInfo,
+                  },
+                });
+              }
             }
 
             importedCount++;
@@ -294,7 +354,7 @@ export const collectionsRouter = {
 
   /**
    * Delete a collection (storage container).
-   * This only removes the storage container and unassigns cards from it.
+   * This soft-deletes the storage container and marks associated card locations as deleted.
    * Collection cards themselves are NOT deleted - they just become unassigned.
    */
   delete: protectedProcedure
@@ -304,36 +364,101 @@ export const collectionsRouter = {
 
       // Verify the collection exists and belongs to the user
       const [collection] = await db
-        .select({ id: storageContainer.id, name: storageContainer.name })
+        .select({
+          id: storageContainer.id,
+          name: storageContainer.name,
+          type: storageContainer.type,
+          description: storageContainer.description,
+          sortOrder: storageContainer.sortOrder,
+          createdAt: storageContainer.createdAt,
+        })
         .from(storageContainer)
-        .where(and(eq(storageContainer.id, input.id), eq(storageContainer.userId, userId)));
+        .where(
+          and(
+            eq(storageContainer.id, input.id),
+            eq(storageContainer.userId, userId),
+            // Only allow deleting non-deleted containers
+            sql`${storageContainer.deletedAt} IS NULL`,
+          ),
+        );
 
       if (!collection) {
         throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
       }
 
-      // Delete the collection (card locations will have storageContainerId set to null via onDelete: "set null")
-      await db.delete(storageContainer).where(eq(storageContainer.id, input.id));
+      const now = new Date();
+      const nowMs = now.getTime();
 
-      // Publish deletion event to notify connected clients
-      const now = Date.now();
+      // Soft delete the storage container
+      await db
+        .update(storageContainer)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(eq(storageContainer.id, input.id));
+
+      // Find and soft-delete all card locations that reference this storage container
+      const affectedLocations = await db
+        .select({
+          id: collectionCardLocation.id,
+          collectionCardId: collectionCardLocation.collectionCardId,
+          deckId: collectionCardLocation.deckId,
+          assignedAt: collectionCardLocation.assignedAt,
+        })
+        .from(collectionCardLocation)
+        .where(eq(collectionCardLocation.storageContainerId, input.id));
+
+      if (affectedLocations.length > 0) {
+        // Soft-delete all affected card locations
+        await db
+          .update(collectionCardLocation)
+          .set({
+            deletedAt: now,
+            updatedAt: now,
+            storageContainerId: null, // Also null out the reference
+          })
+          .where(eq(collectionCardLocation.storageContainerId, input.id));
+
+        // Publish deletion events for all affected card locations
+        const locationDocs = affectedLocations.map((loc) => ({
+          id: loc.id,
+          collectionCardId: loc.collectionCardId,
+          storageContainerId: null,
+          deckId: loc.deckId,
+          assignedAt: loc.assignedAt.getTime(),
+          updatedAt: nowMs,
+          _deleted: true,
+        }));
+
+        // Publish in batches if needed (using the last location for checkpoint)
+        const lastLoc = locationDocs[locationDocs.length - 1];
+        if (lastLoc) {
+          collectionCardLocationPublisher.publish(userId, {
+            documents: locationDocs,
+            checkpoint: {
+              id: lastLoc.id,
+              updatedAt: nowMs,
+            },
+          });
+        }
+      }
+
+      // Publish deletion event for the storage container
       storageContainerPublisher.publish(userId, {
         documents: [
           {
             id: input.id,
             userId,
             name: collection.name,
-            type: "",
-            description: null,
-            sortOrder: 0,
-            createdAt: now,
-            updatedAt: now,
+            type: collection.type,
+            description: collection.description,
+            sortOrder: collection.sortOrder,
+            createdAt: collection.createdAt.getTime(),
+            updatedAt: nowMs,
             _deleted: true,
           },
         ],
         checkpoint: {
           id: input.id,
-          updatedAt: now,
+          updatedAt: nowMs,
         },
       });
 
@@ -347,7 +472,8 @@ export const collectionsRouter = {
   sync: {
     /**
      * Pull endpoint for storage container (collection) replication.
-     * Returns all storage containers owned by the user.
+     * Returns all storage containers owned by the user, including soft-deleted ones.
+     * Soft-deleted containers are returned with _deleted: true so clients can remove them.
      */
     pull: protectedProcedure
       .input(
@@ -365,7 +491,7 @@ export const collectionsRouter = {
 
         let documents;
         if (checkpoint) {
-          // Get documents after the checkpoint
+          // Get documents after the checkpoint (includes soft-deleted)
           documents = await db
             .select({
               id: storageContainer.id,
@@ -376,6 +502,7 @@ export const collectionsRouter = {
               sortOrder: storageContainer.sortOrder,
               createdAt: storageContainer.createdAt,
               updatedAt: storageContainer.updatedAt,
+              deletedAt: storageContainer.deletedAt,
             })
             .from(storageContainer)
             .where(
@@ -393,7 +520,7 @@ export const collectionsRouter = {
             .orderBy(asc(storageContainer.updatedAt), asc(storageContainer.id))
             .limit(batchSize);
         } else {
-          // Initial sync - get all documents
+          // Initial sync - get all documents (includes soft-deleted)
           documents = await db
             .select({
               id: storageContainer.id,
@@ -404,6 +531,7 @@ export const collectionsRouter = {
               sortOrder: storageContainer.sortOrder,
               createdAt: storageContainer.createdAt,
               updatedAt: storageContainer.updatedAt,
+              deletedAt: storageContainer.deletedAt,
             })
             .from(storageContainer)
             .where(userCondition)
@@ -411,7 +539,7 @@ export const collectionsRouter = {
             .limit(batchSize);
         }
 
-        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        // Transform documents for RxDB (convert dates to timestamps, set _deleted based on deletedAt)
         const rxdbDocuments = documents.map((doc) => ({
           id: doc.id,
           userId: doc.userId,
@@ -421,7 +549,7 @@ export const collectionsRouter = {
           sortOrder: doc.sortOrder,
           createdAt: doc.createdAt.getTime(),
           updatedAt: doc.updatedAt.getTime(),
-          _deleted: false,
+          _deleted: doc.deletedAt !== null,
         }));
 
         // Calculate new checkpoint
@@ -457,7 +585,8 @@ export const collectionsRouter = {
   cardSync: {
     /**
      * Pull endpoint for collection card replication.
-     * Returns all collection cards owned by the user.
+     * Returns all collection cards owned by the user, including soft-deleted ones.
+     * Soft-deleted cards are returned with _deleted: true so clients can remove them.
      */
     pull: protectedProcedure
       .input(
@@ -485,11 +614,12 @@ export const collectionsRouter = {
           removedAt: collectionCard.removedAt,
           createdAt: collectionCard.createdAt,
           updatedAt: collectionCard.updatedAt,
+          deletedAt: collectionCard.deletedAt,
         };
 
         let documents;
         if (checkpoint) {
-          // Get documents after the checkpoint
+          // Get documents after the checkpoint (includes soft-deleted)
           documents = await db
             .select(selectFields)
             .from(collectionCard)
@@ -508,7 +638,7 @@ export const collectionsRouter = {
             .orderBy(asc(collectionCard.updatedAt), asc(collectionCard.id))
             .limit(batchSize);
         } else {
-          // Initial sync - get all collection cards for user
+          // Initial sync - get all collection cards for user (includes soft-deleted)
           documents = await db
             .select(selectFields)
             .from(collectionCard)
@@ -517,7 +647,7 @@ export const collectionsRouter = {
             .limit(batchSize);
         }
 
-        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        // Transform documents for RxDB (convert dates to timestamps, set _deleted based on deletedAt)
         const rxdbDocuments = documents.map((doc) => ({
           id: doc.id,
           userId: doc.userId,
@@ -532,7 +662,7 @@ export const collectionsRouter = {
           removedAt: doc.removedAt?.getTime() ?? null,
           createdAt: doc.createdAt.getTime(),
           updatedAt: doc.updatedAt.getTime(),
-          _deleted: false, // Collection cards use soft delete via status field
+          _deleted: doc.deletedAt !== null,
         }));
 
         // Calculate new checkpoint
@@ -572,7 +702,8 @@ export const collectionsRouter = {
   locationSync: {
     /**
      * Pull endpoint for collection card location replication.
-     * Returns all card locations for the user's collection cards.
+     * Returns all card locations for the user's collection cards, including soft-deleted ones.
+     * Soft-deleted locations are returned with _deleted: true so clients can remove them.
      */
     pull: protectedProcedure
       .input(
@@ -585,6 +716,10 @@ export const collectionsRouter = {
         const userId = context.session.user.id;
         const { checkpoint, batchSize } = input;
 
+        // Use COALESCE to fall back to assignedAt if updatedAt is null (for existing records)
+        // This returns an integer (timestamp_ms) so we need to compare with raw numbers
+        const effectiveUpdatedAt = sql<number>`COALESCE(${collectionCardLocation.updatedAt}, ${collectionCardLocation.assignedAt})`;
+
         // Base select fields for collection card locations
         const selectFields = {
           id: collectionCardLocation.id,
@@ -592,12 +727,15 @@ export const collectionsRouter = {
           storageContainerId: collectionCardLocation.storageContainerId,
           deckId: collectionCardLocation.deckId,
           assignedAt: collectionCardLocation.assignedAt,
+          updatedAt: effectiveUpdatedAt,
+          deletedAt: collectionCardLocation.deletedAt,
         };
 
         let documents;
         if (checkpoint) {
-          // Get documents after the checkpoint
+          // Get documents after the checkpoint (includes soft-deleted)
           // Join with collection_card to filter by user
+          // Compare using raw timestamp number since COALESCE returns integer
           documents = await db
             .select(selectFields)
             .from(collectionCardLocation)
@@ -609,18 +747,18 @@ export const collectionsRouter = {
               and(
                 eq(collectionCard.userId, userId),
                 or(
-                  gt(collectionCardLocation.assignedAt, new Date(checkpoint.updatedAt)),
+                  sql`${effectiveUpdatedAt} > ${checkpoint.updatedAt}`,
                   and(
-                    eq(collectionCardLocation.assignedAt, new Date(checkpoint.updatedAt)),
+                    sql`${effectiveUpdatedAt} = ${checkpoint.updatedAt}`,
                     gt(collectionCardLocation.id, checkpoint.id),
                   ),
                 ),
               ),
             )
-            .orderBy(asc(collectionCardLocation.assignedAt), asc(collectionCardLocation.id))
+            .orderBy(asc(effectiveUpdatedAt), asc(collectionCardLocation.id))
             .limit(batchSize);
         } else {
-          // Initial sync - get all locations for user's collection cards
+          // Initial sync - get all locations for user's collection cards (includes soft-deleted)
           documents = await db
             .select(selectFields)
             .from(collectionCardLocation)
@@ -629,24 +767,26 @@ export const collectionsRouter = {
               eq(collectionCardLocation.collectionCardId, collectionCard.id),
             )
             .where(eq(collectionCard.userId, userId))
-            .orderBy(asc(collectionCardLocation.assignedAt), asc(collectionCardLocation.id))
+            .orderBy(asc(effectiveUpdatedAt), asc(collectionCardLocation.id))
             .limit(batchSize);
         }
 
-        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        // Transform documents for RxDB (convert dates to timestamps, set _deleted based on deletedAt)
+        // Note: updatedAt from COALESCE query comes back as number (ms) directly
         const rxdbDocuments = documents.map((doc) => ({
           id: doc.id,
           collectionCardId: doc.collectionCardId,
           storageContainerId: doc.storageContainerId,
           deckId: doc.deckId,
           assignedAt: doc.assignedAt.getTime(),
-          _deleted: false,
+          updatedAt: doc.updatedAt,
+          _deleted: doc.deletedAt !== null,
         }));
 
-        // Calculate new checkpoint (using assignedAt as updatedAt equivalent)
+        // Calculate new checkpoint using updatedAt
         const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
         const newCheckpoint: ReplicationCheckpoint = lastDoc
-          ? { id: lastDoc.id, updatedAt: lastDoc.assignedAt }
+          ? { id: lastDoc.id, updatedAt: lastDoc.updatedAt }
           : checkpoint;
 
         return {

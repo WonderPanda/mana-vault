@@ -51,6 +51,11 @@ function createPullStream<RxDocType extends { _deleted: boolean }, CheckpointTyp
         // RxDB expects checkpoint to be non-null in stream events
         // If null, we skip emitting (shouldn't happen in practice)
         if (event.checkpoint !== null) {
+          // Debug: log deletions
+          const deletedDocs = event.documents.filter((d) => d._deleted);
+          if (deletedDocs.length > 0) {
+            console.log("[Replication Stream] Received deleted documents:", deletedDocs);
+          }
           subject.next({
             documents: event.documents,
             checkpoint: event.checkpoint,
@@ -95,12 +100,18 @@ function createPullStreamWithResync<RxDocType extends { _deleted: boolean }, Che
       for await (const event of iterator) {
         // Handle RESYNC signal from server (used after bulk imports)
         if (event === "RESYNC") {
+          console.log("[Replication Stream] Received RESYNC signal");
           subject.next("RESYNC");
           continue;
         }
 
         // RxDB expects checkpoint to be non-null in stream events
         if (event.checkpoint !== null) {
+          // Debug: log deletions
+          const deletedDocs = event.documents.filter((d) => d._deleted);
+          if (deletedDocs.length > 0) {
+            console.log("[Replication Stream] Received deleted documents:", deletedDocs);
+          }
           subject.next({
             documents: event.documents,
             checkpoint: event.checkpoint,
@@ -262,6 +273,7 @@ export function setupStorageContainerReplication(
   const replicationState = replicateRxCollection<StorageContainerDoc, ReplicationCheckpoint>({
     collection: db.storage_containers,
     replicationIdentifier: "storage-container-pull-replication",
+    deletedField: "_deleted", // Explicitly specify the deleted field
     pull: {
       async handler(checkpointOrNull, batchSize) {
         // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
@@ -326,6 +338,7 @@ export function setupCollectionCardReplication(
   const replicationState = replicateRxCollection<CollectionCardDoc, ReplicationCheckpoint>({
     collection: db.collection_cards,
     replicationIdentifier: "collection-card-pull-replication",
+    deletedField: "_deleted", // Explicitly specify the deleted field
     pull: {
       async handler(checkpointOrNull, batchSize) {
         // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
@@ -390,6 +403,7 @@ export function setupCollectionCardLocationReplication(
   const replicationState = replicateRxCollection<CollectionCardLocationDoc, ReplicationCheckpoint>({
     collection: db.collection_card_locations,
     replicationIdentifier: "collection-card-location-pull-replication",
+    deletedField: "_deleted", // Explicitly specify the deleted field
     pull: {
       async handler(checkpointOrNull, batchSize) {
         // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)

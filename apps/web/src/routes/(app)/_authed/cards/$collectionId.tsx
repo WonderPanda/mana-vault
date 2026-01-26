@@ -43,8 +43,10 @@ export const Route = createFileRoute("/(app)/_authed/cards/$collectionId")({
 function CollectionDetailPage() {
   const { collectionId } = Route.useParams();
   const navigate = useNavigate();
+
   const { data: collection } = useStorageContainer(collectionId);
   const { data: cards = [] } = useCollectionCardsByContainer(collectionId);
+
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
