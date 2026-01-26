@@ -26,6 +26,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc, queryClient } from "@/utils/orpc";
+import { useLiveQuery, eq, sum } from "@tanstack/react-db";
 
 export const Route = createFileRoute("/(app)/_authed/decks/$deckId")({
   component: DeckDetailPage,
@@ -37,17 +38,61 @@ export const Route = createFileRoute("/(app)/_authed/decks/$deckId")({
       ),
     ]);
   },
+  loader: ({ context: { db } }) => {
+    return db;
+  },
 });
 
 function DeckDetailPage() {
   const { deckId } = Route.useParams();
   const navigate = useNavigate();
-  const { data: deck } = useSuspenseQuery(orpc.decks.get.queryOptions({ input: { id: deckId } }));
-  const { data: cards } = useSuspenseQuery(orpc.decks.getCards.queryOptions({ input: { deckId } }));
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
+
+  const { deckCollection, deckCardCollection, scryfallCardCollection } = Route.useLoaderData();
+
+  const { data: decks } = useLiveQuery((q) =>
+    q.from({ deck: deckCollection }).where(({ deck }) => eq(deck.id, deckId)),
+  );
+
+  const { data: deckCardCount } = useLiveQuery((q) =>
+    q
+      .from({ deckCard: deckCardCollection })
+      .groupBy(({ deckCard }) => deckCard.deckId)
+      .select(({ deckCard }) => ({
+        deckId: deckCard.deckId,
+        cardCount: sum(deckCard.quantity),
+      })),
+  );
+
+  const cardCount = deckCardCount?.find((dc) => dc.deckId === deckId)?.cardCount ?? 0;
+
+  const { data: cards } = useLiveQuery((q) =>
+    q
+      .from({ deckCard: deckCardCollection })
+      .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+        eq(deckCard.preferredScryfallId, card.id),
+      )
+      .where(({ deckCard }) => eq(deckCard.deckId, deckId))
+      .select(({ deckCard, card }) => ({
+        ...deckCard,
+        scryfallCard: {
+          name: card.name,
+          setCode: card.setCode,
+          setName: card.setName,
+          collectorNumber: card.collectorNumber,
+          imageUri: card.imageUri,
+          manaCost: card.manaCost,
+          typeLine: card.typeLine,
+        },
+      })),
+  );
+
+  const deck = decks?.[0] ?? {};
+
+  // console.log("Live deck:", liveDeck);
 
   const importMutation = useMutation({
     ...orpc.decks.importCards.mutationOptions(),
@@ -204,7 +249,7 @@ function DeckDetailPage() {
             </div>
           )}
           <div>
-            <span className="font-medium">Cards:</span> {deck.cardCount}
+            <span className="font-medium">Cards:</span> {cardCount}
           </div>
           <div>
             <span className="font-medium">Created:</span>{" "}

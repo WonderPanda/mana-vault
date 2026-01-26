@@ -9,14 +9,16 @@ import {
 import { ChartColumnBig, Layers, ListChecks, Search, Settings, User } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
+import { client } from "@/utils/orpc";
 import { cn } from "@/lib/utils";
 import { getOrCreateDb } from "@/lib/db/db";
+import { executeInitialSync } from "@/lib/db/replication";
 
 const ADMIN_EMAIL = "jesse@thecarters.cloud";
 
 export const Route = createFileRoute("/(app)/_authed")({
   component: AuthedLayout,
-  beforeLoad: async ({ context: { queryClient } }) => {
+  beforeLoad: async ({ context: { queryClient, orpc } }) => {
     // First fetch session (always fresh on first load, then cached until expiry)
     const session = await queryClient.fetchQuery({
       queryKey: ["session"],
@@ -44,6 +46,16 @@ export const Route = createFileRoute("/(app)/_authed")({
     });
 
     const db = await getOrCreateDb();
+
+    await queryClient.ensureQueryData({
+      queryKey: ["initialSync"],
+      queryFn: async () => {
+        await executeInitialSync(db.rxdb, client);
+        return { success: true };
+      },
+
+      staleTime: Infinity,
+    });
 
     return { session: session.data, customerState, db };
   },

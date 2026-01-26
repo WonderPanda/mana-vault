@@ -27,11 +27,23 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc, queryClient } from "@/utils/orpc";
+import { sum, useLiveQuery } from "@tanstack/react-db";
 
 export const Route = createFileRoute("/(app)/_authed/decks/")({
   component: DecksPage,
-  beforeLoad: async ({ context: { queryClient } }) => {
-    await queryClient.ensureQueryData(orpc.decks.list.queryOptions());
+  // TODO: Remove
+  // beforeLoad: async ({ context: { queryClient } }) => {
+  //   await queryClient.ensureQueryData(orpc.decks.list.queryOptions());
+  // },
+  loader: ({
+    context: {
+      db: { deckCollection, deckCardCollection },
+    },
+  }) => {
+    return {
+      deckCollection,
+      deckCardCollection,
+    };
   },
 });
 
@@ -40,8 +52,22 @@ type DeckStatus = "active" | "retired" | "in_progress" | "theorycraft";
 type DeckArchetype = "aggro" | "control" | "combo" | "midrange" | "tempo" | "other";
 
 function DecksPage() {
+  const { deckCollection, deckCardCollection } = Route.useLoaderData();
+
   const { data: decks } = useSuspenseQuery(orpc.decks.list.queryOptions());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // TODO: Could we do this as a join?
+  const { data: liveDecks } = useLiveQuery((q) => q.from({ deck: deckCollection }));
+  const { data: deckCardCount } = useLiveQuery((q) =>
+    q
+      .from({ deckCard: deckCardCollection })
+      .groupBy(({ deckCard }) => deckCard.deckId)
+      .select(({ deckCard }) => ({
+        deckId: deckCard.deckId,
+        cardCount: sum(deckCard.quantity),
+      })),
+  );
 
   return (
     <PageLayout>
@@ -64,8 +90,16 @@ function DecksPage() {
           <EmptyDecksState onCreateClick={() => setIsCreateOpen(true)} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {decks.map((deck) => (
-              <DeckCard key={deck.id} deck={deck} />
+            {liveDecks.map((deck) => (
+              <DeckCard
+                key={deck.id}
+                deck={{
+                  ...deck,
+                  createdAt: new Date(deck.createdAt),
+                  updatedAt: new Date(deck.updatedAt),
+                  cardCount: deckCardCount.find((dc) => dc.deckId === deck.id)?.cardCount ?? 0,
+                }}
+              />
             ))}
           </div>
         )}

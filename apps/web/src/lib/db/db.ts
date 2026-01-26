@@ -4,6 +4,15 @@ import { createCollection } from "@tanstack/react-db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 
 import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
+import type { RxReplicationState } from "rxdb/plugins/replication";
+
+import {
+  setupDeckReplication,
+  setupDeckCardReplication,
+  setupScryfallCardReplication,
+} from "./replication";
+import type { ReplicationCheckpoint } from "./replication";
+import { client } from "@/utils/orpc";
 
 // =============================================================================
 // Schema Definitions
@@ -32,6 +41,7 @@ const scryfallCardSchema: RxJsonSchema<ScryfallCardDoc> = {
     dataJson: { type: ["string", "null"] }, // Full Scryfall JSON for additional fields
     createdAt: { type: "number" },
     updatedAt: { type: "number" },
+    _deleted: { type: "boolean" }, // Required for RxDB replication
   },
   required: [
     "id",
@@ -43,6 +53,7 @@ const scryfallCardSchema: RxJsonSchema<ScryfallCardDoc> = {
     "rarity",
     "createdAt",
     "updatedAt",
+    "_deleted",
   ],
   indexes: ["oracleId", "name", "setCode"],
 };
@@ -64,6 +75,7 @@ const deckSchema: RxJsonSchema<DeckDoc> = {
     sortOrder: { type: "number" },
     createdAt: { type: "number" },
     updatedAt: { type: "number" },
+    _deleted: { type: "boolean" }, // Required for RxDB replication
   },
   required: [
     "id",
@@ -75,6 +87,7 @@ const deckSchema: RxJsonSchema<DeckDoc> = {
     "sortOrder",
     "createdAt",
     "updatedAt",
+    "_deleted",
   ],
   indexes: ["userId", ["userId", "status"], ["userId", "format"]],
 };
@@ -97,6 +110,7 @@ const deckCardSchema: RxJsonSchema<DeckCardDoc> = {
     sortOrder: { type: "number" },
     createdAt: { type: "number" },
     updatedAt: { type: "number" },
+    _deleted: { type: "boolean" }, // Required for RxDB replication
   },
   required: [
     "id",
@@ -110,6 +124,7 @@ const deckCardSchema: RxJsonSchema<DeckCardDoc> = {
     "sortOrder",
     "createdAt",
     "updatedAt",
+    "_deleted",
   ],
   indexes: ["deckId", "oracleId", ["deckId", "isCommander"]],
 };
@@ -137,6 +152,7 @@ export interface ScryfallCardDoc {
   dataJson: string | null;
   createdAt: number;
   updatedAt: number;
+  _deleted: boolean; // Required for RxDB replication
 }
 
 export interface DeckDoc {
@@ -152,6 +168,7 @@ export interface DeckDoc {
   sortOrder: number;
   createdAt: number;
   updatedAt: number;
+  _deleted: boolean; // Required for RxDB replication
 }
 
 export interface DeckCardDoc {
@@ -168,6 +185,7 @@ export interface DeckCardDoc {
   sortOrder: number;
   createdAt: number;
   updatedAt: number;
+  _deleted: boolean; // Required for RxDB replication
 }
 
 // =============================================================================
@@ -186,13 +204,13 @@ export type ManaVaultDatabase = RxDatabase<DatabaseCollections>;
 // Database Instance
 // =============================================================================
 
-let db: ManaVaultDatabase | null = null;
+// =============================================================================
+// Singleton State
+// =============================================================================
 
-export async function getOrCreateDb() {
-  if (db) {
-    return db;
-  }
+let dbSingleton: Awaited<ReturnType<typeof initializeDb>> | null = null;
 
+async function initializeDb() {
   const database = await createRxDatabase<DatabaseCollections>({
     name: "mana_vault_db",
     storage: getRxStorageDexie(),
@@ -210,30 +228,43 @@ export async function getOrCreateDb() {
     },
   });
 
-  db = database;
+  // Set up replication for decks, deck cards, and scryfall cards
+  const deckReplicationState = setupDeckReplication(database, client);
+  const deckCardReplicationState = setupDeckCardReplication(database, client);
+  const scryfallCardReplicationState = setupScryfallCardReplication(database, client);
 
   const deckCollection = createCollection(
     rxdbCollectionOptions({
-      rxCollection: db.decks,
+      rxCollection: database.decks,
     }),
   );
 
   const deckCardCollection = createCollection(
     rxdbCollectionOptions({
-      rxCollection: db.deck_cards,
+      rxCollection: database.deck_cards,
     }),
   );
 
   const scryfallCardCollection = createCollection(
     rxdbCollectionOptions({
-      rxCollection: db.scryfall_cards,
+      rxCollection: database.scryfall_cards,
     }),
   );
 
   return {
-    rxdb: db,
+    rxdb: database,
+    deckReplicationState,
+    deckCardReplicationState,
+    scryfallCardReplicationState,
     deckCollection,
     deckCardCollection,
     scryfallCardCollection,
   };
+}
+
+export async function getOrCreateDb() {
+  if (!dbSingleton) {
+    dbSingleton = await initializeDb();
+  }
+  return dbSingleton;
 }
