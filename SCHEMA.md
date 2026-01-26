@@ -2,6 +2,50 @@
 
 This document outlines the planned database schema for Mana Vault. The database is SQLite using Drizzle ORM.
 
+> **IMPORTANT FOR AI AGENTS**: This document defines the core data model and domain concepts for the application. Before making any changes to the database schema, API routes, or features that involve data models, **read this document thoroughly** to understand the relationships and intent behind the design.
+
+## Key Domain Concepts
+
+### Collection vs Lists
+
+Understanding the distinction between **Collection** and **Lists** is critical:
+
+| Concept                                          | Source of Truth                | Purpose                                                                                        |
+| ------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **Collection** (`collection_card`)               | YES - cards you physically own | Tracks every physical card in your possession with condition, location, deck assignment        |
+| **Lists** (`virtual_list` + `virtual_list_card`) | NO - references/snapshots      | Staging areas, wishlists, historical records. References cards but doesn't represent ownership |
+
+**Collection Cards** are the authoritative record of cards you own. Each row = one physical card. Cards in your collection can be:
+
+- Assigned to storage locations (binders, boxes)
+- Assigned to decks
+- Tagged for organization
+- Tracked through their entire lifecycle (acquired → traded/sold)
+
+**Virtual Lists** are separate organizational tools that reference cards:
+
+- **Owned Lists**: Stage cards before adding to collection (e.g., "Birthday Gift 2024")
+- **Wishlists**: Track cards you want to acquire
+- Lists reference Scryfall cards directly via `scryfall_card_id`
+- Lists can optionally link to collection cards via `collection_card_id` after "move to collection"
+- **Deleting a list never affects collection cards**
+
+### Typical Workflows
+
+**Receiving new cards (gift, purchase, trade)**:
+
+1. Create an "owned" list with source info
+2. Import cards via CSV → creates list entries referencing Scryfall cards
+3. Review and verify the list
+4. "Move to collection" → creates `collection_card` entries
+5. List remains as historical record
+
+**Building a wishlist**:
+
+1. Create a "wishlist" list
+2. Add cards you want (via search or import)
+3. When you acquire a card, either remove from wishlist or link to new collection card
+
 ## Existing Tables (auth.ts)
 
 - `user` - User accounts (Better-Auth)
@@ -234,9 +278,13 @@ Many-to-many: deck-scoped tags on deck cards.
 
 ### Wishlists
 
-#### `wishlist_item`
+Wishlists are implemented using **virtual lists with `list_type = 'wishlist'`**. See the Virtual Lists section above.
 
-Global and deck-specific wishlists.
+The legacy `wishlist_item` table exists for deck-specific wishlists but the primary wishlist functionality uses virtual lists.
+
+#### `wishlist_item` (Legacy/Deck-Specific)
+
+Deck-specific wishlists for tracking cards needed for a particular deck.
 
 | Column           | Type                | Description                      |
 | ---------------- | ------------------- | -------------------------------- |
@@ -254,13 +302,24 @@ Global and deck-specific wishlists.
 
 **Unique constraint**: `user_id + scryfall_card_id + deck_id` (can't have same card twice in same wishlist)
 
+**Note**: For general wishlists (not tied to a specific deck), use virtual lists with `list_type = 'wishlist'` instead.
+
 ---
 
-### Virtual Lists (Snapshots)
+### Virtual Lists (Staging & Snapshots)
+
+Virtual lists are **separate from the collection**. They serve as staging areas or historical records for groups of cards. Lists reference Scryfall cards directly and can optionally be linked to collection cards later.
+
+**Key Concept**: Lists are NOT the source of truth for owned cards. The `collection_card` table is the source of truth. Lists are snapshots/references that can be used to:
+
+- Stage cards before adding them to your collection
+- Track cards you want to acquire (wishlists)
+- Record the history of a gift, purchase, or trade
+- Organize cards for any purpose without affecting your collection
 
 #### `virtual_list`
 
-Named lists for historical preservation.
+Named lists for staging or historical preservation.
 
 | Column        | Type      | Description                                   |
 | ------------- | --------- | --------------------------------------------- |
@@ -268,6 +327,7 @@ Named lists for historical preservation.
 | user_id       | text (FK) | Owner                                         |
 | name          | text      | List name (e.g., "Cards from brother-in-law") |
 | description   | text      | Notes about the list                          |
+| list_type     | text      | **owned** or **wishlist** (default: owned)    |
 | source_type   | text      | gift, purchase, trade, other                  |
 | source_name   | text      | Who/where it came from                        |
 | snapshot_date | integer   | When the collection was received/captured     |
@@ -276,21 +336,43 @@ Named lists for historical preservation.
 
 **Indexes**: `user_id`
 
+**List Types**:
+
+- **owned**: Cards you have received or purchased. These can later be "moved to collection" to create actual `collection_card` entries.
+- **wishlist**: Cards you want to acquire. No collection cards involved until you obtain them.
+
 #### `virtual_list_card`
 
-Cards on a virtual list with their snapshot values.
+Cards on a virtual list. References Scryfall cards directly, with optional link to collection cards.
 
-| Column             | Type                | Description                 |
-| ------------------ | ------------------- | --------------------------- |
-| id                 | text (PK)           | UUID                        |
-| virtual_list_id    | text (FK)           | The list                    |
-| collection_card_id | text (FK)           | Link to the actual card     |
-| snapshot_price     | real                | Value at time of snapshot   |
-| price_source_id    | text (FK, nullable) | Which price source was used |
-| notes              | text                |                             |
-| created_at         | integer             |                             |
+| Column             | Type                | Description                                 |
+| ------------------ | ------------------- | ------------------------------------------- |
+| id                 | text (PK)           | UUID                                        |
+| virtual_list_id    | text (FK)           | The list                                    |
+| scryfall_card_id   | text (FK, nullable) | Direct reference to the card                |
+| collection_card_id | text (FK, nullable) | Link to collection (if moved to collection) |
+| quantity           | integer             | Number of copies (default 1)                |
+| condition          | text                | Desired/actual condition                    |
+| is_foil            | integer             | Desired/actual foil status                  |
+| language           | text                | Desired/actual language                     |
+| snapshot_price     | real                | Value at time of snapshot                   |
+| price_source_id    | text (FK, nullable) | Which price source was used                 |
+| notes              | text                |                                             |
+| created_at         | integer             |                                             |
 
-**Indexes**: `virtual_list_id`, `collection_card_id`
+**Indexes**: `virtual_list_id`, `collection_card_id`, `scryfall_card_id`
+
+**Important**: When importing cards to a list (via CSV or search), cards are always created as Scryfall references (`scryfall_card_id`). The `collection_card_id` is only populated later when the user explicitly "moves cards to collection."
+
+**Workflow**:
+
+1. User creates a list (e.g., "Birthday Gift 2024", type: owned)
+2. User imports CSV → creates `virtual_list_card` entries with `scryfall_card_id`
+3. User reviews the list, makes corrections
+4. User "moves to collection" → creates `collection_card` entries and links them via `collection_card_id`
+5. The list remains as a historical record of what was received
+
+**Deleting a list**: Only deletes the `virtual_list` and `virtual_list_card` entries. Collection cards are **never** affected by list deletion.
 
 ---
 
@@ -433,9 +515,14 @@ Price data for cards from various sources.
 
 6. **Current prices only**: No `card_price_history` table. Historical pricing will be fetched from external APIs if needed. The `card_price` table stores current prices per source.
 
-## Resolved Design Decisions (continued)
-
 7. **Soft deletes via status field**: Collection cards are never hard-deleted. The `status` field tracks lifecycle (owned, traded, sold, lost) and `removed_at` records when the card left your collection. This enables searching for any card you've ever owned and seeing its full history ("I had this but traded it to X on Y date").
+
+8. **Lists are separate from Collection**: Virtual lists (`virtual_list` + `virtual_list_card`) are staging areas and historical records, NOT the source of truth for owned cards. Key principles:
+   - Lists reference Scryfall cards directly via `scryfall_card_id`
+   - Collection cards are only created when user explicitly "moves to collection"
+   - Deleting a list **never** deletes collection cards
+   - Lists can be "owned" (staging for cards you received) or "wishlist" (cards you want)
+   - This separation allows importing/organizing cards without immediately affecting the collection
 
 ---
 

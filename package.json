@@ -34,7 +34,6 @@
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
-    "db:push": "turbo -F @mana-vault/db db:push",
     "db:generate": "turbo -F @mana-vault/db db:generate",
     "deploy": "turbo -F @mana-vault/infra deploy",
     "deploy:staging": "doppler run -c stg -- turbo -F @mana-vault/infra deploy",

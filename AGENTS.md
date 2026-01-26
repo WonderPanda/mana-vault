@@ -1,5 +1,22 @@
 # AGENTS.md - Coding Agent Guidelines
 
+## Critical: Read SCHEMA.md First
+
+> **BEFORE making any changes to database schema, API routes, or features involving data models, you MUST read `SCHEMA.md` thoroughly.**
+
+The `SCHEMA.md` file documents:
+
+- Core domain concepts (Collection vs Lists, ownership model)
+- Table relationships and their intent
+- Design decisions and their rationale
+- Typical user workflows
+
+Understanding these concepts is essential to avoid breaking the application's data model. Key concepts to understand:
+
+- **Collection** (`collection_card`) = source of truth for owned cards
+- **Lists** (`virtual_list`) = staging areas and references, NOT ownership
+- Lists and Collection are intentionally separate - changes to one should not automatically affect the other
+
 ## Project Overview
 
 Mana-vault is a TypeScript monorepo built with the Better-T-Stack. It consists of:
@@ -41,9 +58,10 @@ bun run dev:native       # Start Expo/React Native dev server
 ### Database Commands
 
 ```bash
-bun run db:push          # Push schema changes to database
-bun run db:generate      # Generate Drizzle migrations
+bun run db:generate      # Generate Drizzle migrations (ALWAYS use this)
 ```
+
+> **IMPORTANT**: Always use `db:generate` to create proper SQL migration files. **Never use `db:push`** to force sync the database. Migration files provide a clear history of schema changes and allow for safe, reviewable deployments.
 
 ### Deployment (Cloudflare via Alchemy)
 
@@ -58,6 +76,7 @@ bun run destroy          # Destroy Cloudflare resources
 - **Formatter**: oxfmt
 - Run both: `bun run check`
 - Pre-commit hooks via Lefthook auto-fix staged files
+- **IMPORTANT** Always run formatting from the root of the repo after making changes via `bun format`. Do not use `bunx oxfmt`.
 
 ### Testing
 
@@ -161,6 +180,21 @@ export const appRouter = {
 - Column naming: snake_case in database, camelCase in TypeScript
 - Always define relations separately from table definitions
 - Use `integer` with `mode: "timestamp_ms"` for dates
+- **IMPORTANT**: Before modifying schema or writing queries, review `SCHEMA.md` to understand the data model and relationships
+
+### Data Model Guidelines
+
+When working with the core data model, keep these principles in mind:
+
+1. **Collection is the source of truth**: `collection_card` represents cards the user physically owns. Each row = one physical card.
+
+2. **Lists are separate from Collection**: `virtual_list` and `virtual_list_card` are staging areas and historical records. They reference cards but don't represent ownership.
+
+3. **Never auto-create collection cards**: When importing to lists, only create `virtual_list_card` entries with `scryfall_card_id`. Collection cards are only created via explicit "move to collection" action.
+
+4. **Never delete collection cards from list operations**: Deleting a list should only remove `virtual_list` and `virtual_list_card` entries. Collection cards are independent.
+
+5. **Soft deletes for collection cards**: Use `status` field (owned/traded/sold/lost) instead of hard deletes to preserve history.
 
 ### Error Handling
 
@@ -175,7 +209,7 @@ throw new ORPCError("UNAUTHORIZED");
 // Client-side error handling
 onError: (error) => {
   toast.error(error.error.message || error.error.statusText);
-}
+};
 ```
 
 ### Environment Variables

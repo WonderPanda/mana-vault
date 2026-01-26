@@ -1,11 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { db } from "@mana-vault/db";
-import {
-  collectionCard,
-  scryfallCard,
-  virtualList,
-  virtualListCard,
-} from "@mana-vault/db/schema/app";
+import { scryfallCard, virtualList, virtualListCard } from "@mana-vault/db/schema/app";
 import { and, asc, eq, sql } from "drizzle-orm";
 import z from "zod";
 
@@ -30,6 +25,12 @@ function isForeignKeyError(error: unknown): boolean {
 const csvFormatSchema = z.enum(["manabox"]);
 export type CsvFormat = z.infer<typeof csvFormatSchema>;
 
+/**
+ * List type schema - owned lists contain cards you have, wishlist contains cards you want
+ */
+const listTypeSchema = z.enum(["owned", "wishlist"]);
+export type ListType = z.infer<typeof listTypeSchema>;
+
 export const listsRouter = {
   // List all virtual lists for the current user with card counts
   list: protectedProcedure.handler(async ({ context }) => {
@@ -40,6 +41,7 @@ export const listsRouter = {
         id: virtualList.id,
         name: virtualList.name,
         description: virtualList.description,
+        listType: virtualList.listType,
         sourceType: virtualList.sourceType,
         sourceName: virtualList.sourceName,
         snapshotDate: virtualList.snapshotDate,
@@ -67,6 +69,7 @@ export const listsRouter = {
           id: virtualList.id,
           name: virtualList.name,
           description: virtualList.description,
+          listType: virtualList.listType,
           sourceType: virtualList.sourceType,
           sourceName: virtualList.sourceName,
           snapshotDate: virtualList.snapshotDate,
@@ -92,6 +95,7 @@ export const listsRouter = {
       z.object({
         name: z.string().min(1).max(100),
         description: z.string().max(500).optional(),
+        listType: listTypeSchema.default("owned"),
         sourceType: z.enum(["gift", "purchase", "trade", "other"]).optional(),
         sourceName: z.string().max(100).optional(),
       }),
@@ -105,6 +109,7 @@ export const listsRouter = {
           userId,
           name: input.name,
           description: input.description ?? null,
+          listType: input.listType,
           sourceType: input.sourceType ?? null,
           sourceName: input.sourceName ?? null,
         })
@@ -115,7 +120,8 @@ export const listsRouter = {
 
   /**
    * Import cards to a list from CSV content.
-   * Accepts raw CSV text and the format identifier for parsing.
+   * Cards are always imported as scryfall references - they can later be
+   * "moved to collection" to create actual collection card entries.
    */
   importCards: protectedProcedure
     .input(
@@ -153,50 +159,32 @@ export const listsRouter = {
         });
       }
 
-      // Create collection cards and virtual list cards for each row
-      // Skip rows that fail due to missing Scryfall card (foreign key constraint)
-      const createdCollectionCardIds: string[] = [];
+      let importedCount = 0;
       let skippedCount = 0;
 
+      // Import all cards as scryfall references (no collection cards created)
       for (const row of parseResult.rows) {
-        // Create one collection card per quantity
-        for (let i = 0; i < row.quantity; i++) {
-          try {
-            const [newCollectionCard] = await db
-              .insert(collectionCard)
-              .values({
-                userId,
-                scryfallCardId: row.scryfallId,
-                condition: mapCondition(row.condition),
-                isFoil: row.foil === "foil" || row.foil === "etched",
-                language: row.language,
-                notes: row.misprint ? "Misprint" : row.altered ? "Altered" : null,
-              })
-              .returning({ id: collectionCard.id });
-
-            if (newCollectionCard) {
-              createdCollectionCardIds.push(newCollectionCard.id);
-
-              // Add to the virtual list
-              await db.insert(virtualListCard).values({
-                virtualListId: input.listId,
-                collectionCardId: newCollectionCard.id,
-                notes: row.purchasePrice
-                  ? `Purchase price: ${row.purchasePrice} ${row.purchasePriceCurrency || ""}`
-                  : null,
-              });
-            }
-          } catch (error) {
-            // Skip cards that don't exist in the Scryfall database (foreign key constraint)
-            if (isForeignKeyError(error)) {
-              skippedCount++;
-              // Only log once per unique card, not per quantity
-              if (i === 0) {
-                console.warn(`Skipping card not found in database: ${row.scryfallId}`);
-              }
-              break; // Skip remaining quantity for this card
-            }
-            throw error; // Re-throw unexpected errors
+        try {
+          await db.insert(virtualListCard).values({
+            virtualListId: input.listId,
+            scryfallCardId: row.scryfallId,
+            quantity: row.quantity,
+            condition: mapCondition(row.condition),
+            isFoil: row.foil === "foil" || row.foil === "etched",
+            language: row.language,
+            snapshotPrice: row.purchasePrice || null,
+            notes: row.purchasePrice
+              ? `Price: ${row.purchasePrice} ${row.purchasePriceCurrency || ""}`
+              : null,
+          });
+          importedCount += row.quantity;
+        } catch (error) {
+          // Skip cards that don't exist in the Scryfall database (foreign key constraint)
+          if (isForeignKeyError(error)) {
+            skippedCount++;
+            console.warn(`Skipping card not found in database: ${row.scryfallId}`);
+          } else {
+            throw error;
           }
         }
       }
@@ -206,19 +194,20 @@ export const listsRouter = {
       return {
         listId: input.listId,
         format: input.format,
-        imported: createdCollectionCardIds.length,
+        imported: importedCount,
         totalQuantity,
         skipped: skippedCount,
         parseErrors: parseResult.errors.length,
         message:
           skippedCount > 0
-            ? `Successfully imported ${createdCollectionCardIds.length} cards. ${skippedCount} cards skipped (invalid Scryfall IDs).`
-            : `Successfully imported ${createdCollectionCardIds.length} cards`,
+            ? `Successfully imported ${importedCount} cards. ${skippedCount} cards skipped (invalid Scryfall IDs).`
+            : `Successfully imported ${importedCount} cards`,
       };
     }),
 
   /**
-   * Get cards in a virtual list with their scryfall data
+   * Get cards in a virtual list with their scryfall data.
+   * Cards may optionally be linked to collection cards (if moved to collection).
    */
   getCards: protectedProcedure
     .input(z.object({ listId: z.string() }))
@@ -235,19 +224,20 @@ export const listsRouter = {
         throw new ORPCError("NOT_FOUND", { message: "List not found" });
       }
 
-      // Get all cards in the list with their collection card and scryfall data
+      // Get all cards in the list with scryfall data
+      // Use left join for collection card (may or may not be linked)
       const cards = await db
         .select({
           id: virtualListCard.id,
           notes: virtualListCard.notes,
+          quantity: virtualListCard.quantity,
+          condition: virtualListCard.condition,
+          isFoil: virtualListCard.isFoil,
+          language: virtualListCard.language,
           createdAt: virtualListCard.createdAt,
-          collectionCard: {
-            id: collectionCard.id,
-            condition: collectionCard.condition,
-            isFoil: collectionCard.isFoil,
-            language: collectionCard.language,
-            notes: collectionCard.notes,
-          },
+          // Collection card link (null if not yet moved to collection)
+          collectionCardId: virtualListCard.collectionCardId,
+          // Scryfall data from direct reference
           scryfallCard: {
             id: scryfallCard.id,
             name: scryfallCard.name,
@@ -261,11 +251,56 @@ export const listsRouter = {
           },
         })
         .from(virtualListCard)
-        .innerJoin(collectionCard, eq(virtualListCard.collectionCardId, collectionCard.id))
-        .innerJoin(scryfallCard, eq(collectionCard.scryfallCardId, scryfallCard.id))
+        .innerJoin(scryfallCard, eq(virtualListCard.scryfallCardId, scryfallCard.id))
         .where(eq(virtualListCard.virtualListId, input.listId))
         .orderBy(asc(scryfallCard.name));
 
-      return cards;
+      return cards.map((card) => ({
+        id: card.id,
+        notes: card.notes,
+        quantity: card.quantity,
+        condition: card.condition,
+        isFoil: card.isFoil,
+        language: card.language,
+        createdAt: card.createdAt,
+        isInCollection: card.collectionCardId != null,
+        scryfallCard: {
+          id: card.scryfallCard.id,
+          name: card.scryfallCard.name,
+          setCode: card.scryfallCard.setCode,
+          setName: card.scryfallCard.setName,
+          collectorNumber: card.scryfallCard.collectorNumber,
+          rarity: card.scryfallCard.rarity,
+          imageUri: card.scryfallCard.imageUri,
+          manaCost: card.scryfallCard.manaCost,
+          typeLine: card.scryfallCard.typeLine,
+        },
+      }));
+    }),
+
+  /**
+   * Delete a list and its card references.
+   * This only removes the list and virtualListCard entries - collection cards are never affected.
+   * Lists are snapshots/references, not the source of truth for owned cards.
+   */
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      // Verify the list exists and belongs to the user
+      const [list] = await db
+        .select({ id: virtualList.id, name: virtualList.name })
+        .from(virtualList)
+        .where(and(eq(virtualList.id, input.id), eq(virtualList.userId, userId)));
+
+      if (!list) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found" });
+      }
+
+      // Delete the list (cascades to virtualListCard entries via foreign key)
+      await db.delete(virtualList).where(eq(virtualList.id, input.id));
+
+      return { success: true, deletedListName: list.name };
     }),
 };

@@ -1,7 +1,7 @@
 import { JSONParser } from "@streamparser/json-whatwg";
 import { db } from "@mana-vault/db";
-import { scryfallCard } from "@mana-vault/db/schema/app";
-import { sql } from "drizzle-orm";
+import { scryfallCard, scryfallImportChunk } from "@mana-vault/db/schema/app";
+import { eq, sql } from "drizzle-orm";
 
 import type {
   ScryfallCardInsertData,
@@ -254,18 +254,25 @@ export async function handleScryfallImport(
     if (batch.length >= BATCH_SIZE) {
       batchNumber++;
       const r2Key = `${batchPrefix}/batch-${batchNumber.toString().padStart(5, "0")}.json`;
-      const batchJson = JSON.stringify(batch);
 
-      // Write batch to R2
-      console.log(
-        `[Scryfall Parse] Uploading batch ${batchNumber} to R2: ${r2Key} (${(batchJson.length / 1024).toFixed(1)}KB)`,
-      );
-      await r2Bucket.put(r2Key, batchJson, {
-        httpMetadata: { contentType: "application/json" },
-      });
-      console.log(`[Scryfall Parse] Upload complete: ${r2Key}`);
+      // Check if batch file already exists in R2 (idempotency for parse stage)
+      const existingBatch = await r2Bucket.head(r2Key);
+      if (existingBatch) {
+        console.log(
+          `[Scryfall Parse] Batch ${batchNumber} already exists in R2 (${(existingBatch.size / 1024).toFixed(1)}KB), skipping upload`,
+        );
+      } else {
+        const batchJson = JSON.stringify(batch);
+        console.log(
+          `[Scryfall Parse] Uploading batch ${batchNumber} to R2: ${r2Key} (${(batchJson.length / 1024).toFixed(1)}KB)`,
+        );
+        await r2Bucket.put(r2Key, batchJson, {
+          httpMetadata: { contentType: "application/json" },
+        });
+        console.log(`[Scryfall Parse] Upload complete: ${r2Key}`);
+      }
 
-      // Dispatch lightweight queue message with just the R2 key
+      // Always dispatch queue message (insert handler is idempotent)
       console.log(`[Scryfall Parse] Sending queue message for batch ${batchNumber}`);
       await insertQueue.send({
         type: "scryfall-insert-batch",
@@ -282,16 +289,25 @@ export async function handleScryfallImport(
   if (batch.length > 0) {
     batchNumber++;
     const r2Key = `${batchPrefix}/batch-${batchNumber.toString().padStart(5, "0")}.json`;
-    const batchJson = JSON.stringify(batch);
 
-    console.log(
-      `[Scryfall Parse] Uploading final batch ${batchNumber} to R2: ${r2Key} (${(batchJson.length / 1024).toFixed(1)}KB)`,
-    );
-    await r2Bucket.put(r2Key, batchJson, {
-      httpMetadata: { contentType: "application/json" },
-    });
-    console.log(`[Scryfall Parse] Upload complete: ${r2Key}`);
+    // Check if batch file already exists in R2 (idempotency for parse stage)
+    const existingBatch = await r2Bucket.head(r2Key);
+    if (existingBatch) {
+      console.log(
+        `[Scryfall Parse] Final batch ${batchNumber} already exists in R2 (${(existingBatch.size / 1024).toFixed(1)}KB), skipping upload`,
+      );
+    } else {
+      const batchJson = JSON.stringify(batch);
+      console.log(
+        `[Scryfall Parse] Uploading final batch ${batchNumber} to R2: ${r2Key} (${(batchJson.length / 1024).toFixed(1)}KB)`,
+      );
+      await r2Bucket.put(r2Key, batchJson, {
+        httpMetadata: { contentType: "application/json" },
+      });
+      console.log(`[Scryfall Parse] Upload complete: ${r2Key}`);
+    }
 
+    // Always dispatch queue message (insert handler is idempotent)
     console.log(`[Scryfall Parse] Sending queue message for final batch ${batchNumber}`);
     await insertQueue.send({
       type: "scryfall-insert-batch",
@@ -319,11 +335,17 @@ export async function handleScryfallImport(
 /**
  * Handle a scryfall insert batch job from the queue (Stage 2: Insert).
  *
+ * This handler is idempotent - if a chunk has already been processed,
+ * it will skip processing and return early.
+ *
  * This handler:
- * 1. Downloads the batch file from R2 using the provided key
- * 2. Parses the JSON array of cards
- * 3. Inserts cards in chunks of 100 using the json_each trick
- * 4. Deletes the R2 batch file after successful processing
+ * 1. Checks if the chunk has already been processed (idempotency check)
+ * 2. Downloads the batch file from R2 using the provided key
+ * 3. Parses the JSON array of cards
+ * 4. Inserts cards in chunks of 100 using the json_each trick
+ * 5. Marks the chunk as completed in the database
+ *
+ * Note: R2 batch files are preserved for historical reference.
  *
  * Multiple instances of this handler run in parallel (maxConcurrency: 5).
  */
@@ -335,6 +357,22 @@ export async function handleScryfallInsertBatch(
   const startTime = Date.now();
 
   console.log(`[Scryfall Insert] Processing batch ${batchNumber} from ${r2Key}...`);
+
+  // Check if this chunk has already been processed (idempotency check)
+  const existingChunk = await db.query.scryfallImportChunk.findFirst({
+    where: eq(scryfallImportChunk.r2Key, r2Key),
+  });
+
+  if (existingChunk) {
+    console.log(
+      `[Scryfall Insert] Batch ${batchNumber} already processed (${existingChunk.cardsInserted} cards at ${existingChunk.completedAt.toISOString()}). Skipping.`,
+    );
+    return;
+  }
+
+  console.log(
+    `[Scryfall Insert] Batch ${batchNumber} not yet processed, proceeding with import...`,
+  );
 
   // Download batch from R2
   const r2Object = await r2Bucket.get(r2Key);
@@ -355,8 +393,18 @@ export async function handleScryfallInsertBatch(
     totalInserted += inserted;
   }
 
-  // Delete the batch file from R2 after successful insert
-  await r2Bucket.delete(r2Key);
+  // Mark chunk as completed in the database
+  const completedAt = new Date();
+  await db.insert(scryfallImportChunk).values({
+    r2Key,
+    cardsInserted: totalInserted,
+    startedAt: new Date(startTime),
+    completedAt,
+  });
+
+  console.log(
+    `[Scryfall Insert] Batch ${batchNumber} marked as completed in database (${totalInserted} cards)`,
+  );
 
   const elapsedMs = Date.now() - startTime;
   console.log(

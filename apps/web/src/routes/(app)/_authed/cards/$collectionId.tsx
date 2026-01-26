@@ -1,12 +1,34 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, Box } from "lucide-react";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  BookOpen,
+  Box,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
+import { CardImportDialog } from "@/components/card-import-dialog";
+import type { CardImportData } from "@/components/card-import-dialog";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import { EmptyCardsState } from "@/components/empty-cards-state";
+import { MtgCardGrid, MtgCardGridSkeleton, MtgCardItem } from "@/components/mtg-card-grid";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { orpc } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/cards/$collectionId")({
   component: CollectionDetailPage,
@@ -26,12 +48,59 @@ export const Route = createFileRoute("/(app)/_authed/cards/$collectionId")({
 
 function CollectionDetailPage() {
   const { collectionId } = Route.useParams();
+  const navigate = useNavigate();
   const { data: collection } = useSuspenseQuery(
     orpc.collections.get.queryOptions({ input: { id: collectionId } }),
   );
   const { data: cards } = useSuspenseQuery(
     orpc.collections.getCards.queryOptions({ input: { collectionId } }),
   );
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  const importMutation = useMutation({
+    ...orpc.collections.importCards.mutationOptions(),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setIsImportOpen(false);
+      queryClient.invalidateQueries({
+        queryKey: orpc.collections.get.queryOptions({ input: { id: collectionId } }).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: orpc.collections.getCards.queryOptions({ input: { collectionId } }).queryKey,
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to import cards");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    ...orpc.collections.delete.mutationOptions(),
+    onSuccess: (data) => {
+      toast.success(`Deleted "${data.deletedCollectionName}"`);
+      queryClient.invalidateQueries({
+        queryKey: orpc.collections.list.queryOptions().queryKey,
+      });
+      navigate({ to: "/cards" });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete collection");
+    },
+  });
+
+  const handleImport = (data: CardImportData) => {
+    importMutation.mutate({
+      collectionId,
+      csvContent: data.csvContent,
+      format: data.format,
+    });
+  };
+
+  const handleDelete = () => {
+    deleteMutation.mutate({ id: collectionId });
+  };
 
   const TypeIcon = collection.type === "binder" ? BookOpen : Box;
 
@@ -56,89 +125,117 @@ function CollectionDetailPage() {
             </div>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+            <PopoverTrigger
+              render={
+                <Button size="icon" className="rounded-full">
+                  <Plus className="h-5 w-5" />
+                </Button>
+              }
+            />
+            <PopoverContent align="end" className="w-48 p-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setIsAddMenuOpen(false);
+                  // TODO: Open search dialog
+                }}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Search Cards
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setIsAddMenuOpen(false);
+                  setIsImportOpen(true);
+                }}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import CSV
+              </Button>
+            </PopoverContent>
+          </Popover>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setIsDeleteOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </PageHeader>
+
+      <CardImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onImport={handleImport}
+        isImporting={importMutation.isPending}
+        title={`Import Cards to "${collection.name}"`}
+        description="Import cards from a CSV file. Cards will be added directly to your collection."
+      />
+
+      <DeleteConfirmationDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        itemName={collection.name}
+        itemType="Collection"
+        onConfirm={handleDelete}
+        isDeleting={deleteMutation.isPending}
+        warningMessage="This will permanently delete the collection. Cards in this collection will become unassigned but will NOT be deleted from your collection."
+      />
 
       <PageContent>
         {cards.length === 0 ? (
-          <EmptyCardsState />
+          <EmptyCardsState
+            variant="collection"
+            onImportClick={() => setIsImportOpen(true)}
+            onAddClick={() => {
+              // TODO: Open search dialog
+            }}
+          />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {cards.map((card) => (
-              <CollectionCardItem key={card.id} card={card} />
-            ))}
-          </div>
+          <MtgCardGrid>
+            {cards.map((card) => {
+              if (!card.card) return null;
+              return (
+                <MtgCardItem
+                  key={card.id}
+                  card={{
+                    id: card.id,
+                    scryfallCard: {
+                      name: card.card.name,
+                      setCode: card.card.setCode,
+                      setName: card.card.setName,
+                      collectorNumber: card.card.collectorNumber,
+                      imageUri: card.card.imageUri,
+                    },
+                    condition: card.condition,
+                    isFoil: card.isFoil,
+                    language: card.language,
+                    isInCollection: true,
+                  }}
+                />
+              );
+            })}
+          </MtgCardGrid>
         )}
       </PageContent>
     </PageLayout>
-  );
-}
-
-function EmptyCardsState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <Box className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 className="mb-2 text-lg font-semibold">No cards yet</h3>
-      <p className="max-w-sm text-muted-foreground">
-        This collection is empty. Add cards from your search or import them to get started.
-      </p>
-    </div>
-  );
-}
-
-interface CollectionCardItemProps {
-  card: {
-    id: string;
-    condition: string;
-    isFoil: boolean;
-    language: string;
-    notes: string | null;
-    assignedAt: Date;
-    card: {
-      id: string;
-      name: string;
-      setCode: string;
-      setName: string;
-      collectorNumber: string;
-      rarity: string;
-      imageUri: string | null;
-    } | null;
-  };
-}
-
-function CollectionCardItem({ card }: CollectionCardItemProps) {
-  if (!card.card) return null;
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="aspect-[488/680] bg-muted">
-        {card.card.imageUri ? (
-          <img
-            src={card.card.imageUri}
-            alt={card.card.name}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <span className="text-sm text-muted-foreground">No image</span>
-          </div>
-        )}
-      </div>
-      <CardContent className="p-3">
-        <h4 className="truncate font-medium">{card.card.name}</h4>
-        <p className="text-xs text-muted-foreground">
-          {card.card.setName} #{card.card.collectorNumber}
-        </p>
-        <div className="mt-1 flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">{card.condition}</span>
-          {card.isFoil && (
-            <span className="rounded bg-yellow-500/20 px-1 text-yellow-600">Foil</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -155,17 +252,7 @@ export function CollectionDetailSkeleton() {
         </div>
       </PageHeader>
       <PageContent>
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <Skeleton className="aspect-[488/680]" />
-              <CardContent className="space-y-2 p-3">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <MtgCardGridSkeleton count={10} />
       </PageContent>
     </PageLayout>
   );

@@ -6,6 +6,30 @@ import { sqliteTable, text, integer, real, index, unique } from "drizzle-orm/sql
 import { user } from "./auth";
 
 // =============================================================================
+// Scryfall Import Tracking
+// =============================================================================
+
+/**
+ * Tracks which chunks (R2 batch files) have been successfully processed.
+ * Used to make the Scryfall import idempotent - if a chunk is already marked
+ * as completed, we skip re-processing it.
+ */
+export const scryfallImportChunk = sqliteTable(
+  "scryfall_import_chunk",
+  {
+    /** The R2 key for this chunk (e.g., "batches/default_cards/batch-00001.json") */
+    r2Key: text("r2_key").primaryKey(),
+    /** Number of cards that were inserted from this chunk */
+    cardsInserted: integer("cards_inserted").notNull(),
+    /** When processing of this chunk started */
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    /** When processing of this chunk completed */
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("scryfall_import_chunk_completed_at_idx").on(table.completedAt)],
+);
+
+// =============================================================================
 // Card Reference Data
 // =============================================================================
 
@@ -376,6 +400,7 @@ export const virtualList = sqliteTable(
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
+    listType: text("list_type").default("owned").notNull(), // owned, wishlist
     sourceType: text("source_type"), // gift, purchase, trade, other
     sourceName: text("source_name"), // Who/where it came from
     snapshotDate: integer("snapshot_date", { mode: "timestamp_ms" }),
@@ -399,9 +424,17 @@ export const virtualListCard = sqliteTable(
     virtualListId: text("virtual_list_id")
       .notNull()
       .references(() => virtualList.id, { onDelete: "cascade" }),
-    collectionCardId: text("collection_card_id")
-      .notNull()
-      .references(() => collectionCard.id, { onDelete: "cascade" }),
+    // For owned lists: links to the actual collection card
+    collectionCardId: text("collection_card_id").references(() => collectionCard.id, {
+      onDelete: "cascade",
+    }),
+    // For wishlist items or unlinked cards: reference the scryfall card directly
+    scryfallCardId: text("scryfall_card_id").references(() => scryfallCard.id),
+    // Wishlist-specific fields (used when collectionCardId is null)
+    quantity: integer("quantity").default(1).notNull(),
+    condition: text("condition"), // Desired condition for wishlist
+    isFoil: integer("is_foil", { mode: "boolean" }), // Desired foil status for wishlist
+    language: text("language"), // Desired language for wishlist
     snapshotPrice: real("snapshot_price"),
     priceSourceId: text("price_source_id").references(() => priceSource.id, {
       onDelete: "set null",
@@ -414,6 +447,7 @@ export const virtualListCard = sqliteTable(
   (table) => [
     index("virtual_list_card_list_idx").on(table.virtualListId),
     index("virtual_list_card_collection_card_idx").on(table.collectionCardId),
+    index("virtual_list_card_scryfall_idx").on(table.scryfallCardId),
   ],
 );
 

@@ -1,6 +1,6 @@
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Gift, ListChecks, Plus, ShoppingCart, Sparkles } from "lucide-react";
+import { ChevronRight, Gift, Heart, ListChecks, Plus, ShoppingCart, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
@@ -73,6 +73,7 @@ interface VirtualList {
   id: string;
   name: string;
   description: string | null;
+  listType: string;
   sourceType: string | null;
   sourceName: string | null;
   snapshotDate: Date | null;
@@ -83,7 +84,8 @@ interface VirtualList {
 
 function ListCard({ list }: { list: VirtualList }) {
   const navigate = useNavigate();
-  const TypeIcon = getSourceTypeIcon(list.sourceType);
+  const TypeIcon = getListTypeIcon(list.listType, list.sourceType);
+  const isWishlist = list.listType === "wishlist";
 
   return (
     <Card
@@ -91,8 +93,10 @@ function ListCard({ list }: { list: VirtualList }) {
       onClick={() => navigate({ to: "/lists/$listId", params: { listId: list.id } })}
     >
       <CardHeader className="flex-row items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/20">
-          <TypeIcon className="h-6 w-6 text-primary" />
+        <div
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${isWishlist ? "bg-pink-500/20" : "bg-primary/20"}`}
+        >
+          <TypeIcon className={`h-6 w-6 ${isWishlist ? "text-pink-500" : "text-primary"}`} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
@@ -100,7 +104,7 @@ function ListCard({ list }: { list: VirtualList }) {
             <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
           </div>
           <p className="truncate text-muted-foreground">
-            {list.description || getSourceTypeLabel(list.sourceType)}
+            {list.description || getListDescription(list.listType, list.sourceType)}
           </p>
         </div>
       </CardHeader>
@@ -113,7 +117,10 @@ function ListCard({ list }: { list: VirtualList }) {
   );
 }
 
-function getSourceTypeIcon(sourceType: string | null) {
+function getListTypeIcon(listType: string, sourceType: string | null) {
+  if (listType === "wishlist") {
+    return Heart;
+  }
   switch (sourceType) {
     case "gift":
       return Gift;
@@ -126,7 +133,10 @@ function getSourceTypeIcon(sourceType: string | null) {
   }
 }
 
-function getSourceTypeLabel(sourceType: string | null): string {
+function getListDescription(listType: string, sourceType: string | null): string {
+  if (listType === "wishlist") {
+    return "Wishlist";
+  }
   switch (sourceType) {
     case "gift":
       return "Gift";
@@ -137,7 +147,7 @@ function getSourceTypeLabel(sourceType: string | null): string {
     case "other":
       return "Other";
     default:
-      return "Custom List";
+      return "Owned Cards";
   }
 }
 
@@ -162,6 +172,7 @@ function EmptyListsState({ onCreateClick }: { onCreateClick: () => void }) {
 
 function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
   const [name, setName] = useState("");
+  const [listType, setListType] = useState<"owned" | "wishlist">("owned");
   const [sourceType, setSourceType] = useState<"gift" | "purchase" | "trade" | "other" | "">("");
   const [sourceName, setSourceName] = useState("");
   const [description, setDescription] = useState("");
@@ -173,6 +184,7 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
         queryKey: orpc.lists.list.queryOptions().queryKey,
       });
       setName("");
+      setListType("owned");
       setSourceType("");
       setSourceName("");
       setDescription("");
@@ -185,6 +197,7 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
     if (!name.trim()) return;
     createMutation.mutate({
       name: name.trim(),
+      listType,
       sourceType: sourceType || undefined,
       sourceName: sourceName.trim() || undefined,
       description: description.trim() || undefined,
@@ -197,7 +210,7 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
         <DialogHeader>
           <DialogTitle>Create List</DialogTitle>
           <DialogDescription>
-            Create a new list to track a group of cards from a specific source.
+            Create a new list to track cards you own or want to acquire.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -212,38 +225,63 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="sourceType">Source Type (optional)</Label>
-            <Select
-              value={sourceType}
-              onValueChange={(v) =>
-                setSourceType(v as "gift" | "purchase" | "trade" | "other" | "")
-              }
-            >
+            <Label htmlFor="listType">List Type</Label>
+            <Select value={listType} onValueChange={(v) => setListType(v as "owned" | "wishlist")}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a source type" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gift">Gift</SelectItem>
-                <SelectItem value="purchase">Purchase</SelectItem>
-                <SelectItem value="trade">Trade</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="owned">Owned Cards</SelectItem>
+                <SelectItem value="wishlist">Wishlist</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {listType === "owned"
+                ? "Track cards you received or purchased. Can be moved to your collection later."
+                : "Track cards you want to acquire."}
+            </p>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="sourceName">Source Name (optional)</Label>
-            <Input
-              id="sourceName"
-              placeholder="e.g., John, LGS, eBay"
-              value={sourceName}
-              onChange={(e) => setSourceName(e.target.value)}
-            />
-          </div>
+          {listType === "owned" && (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="sourceType">Source Type (optional)</Label>
+                <Select
+                  value={sourceType}
+                  onValueChange={(v) =>
+                    setSourceType(v as "gift" | "purchase" | "trade" | "other" | "")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a source type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gift">Gift</SelectItem>
+                    <SelectItem value="purchase">Purchase</SelectItem>
+                    <SelectItem value="trade">Trade</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="sourceName">Source Name (optional)</Label>
+                <Input
+                  id="sourceName"
+                  placeholder="e.g., John, LGS, eBay"
+                  value={sourceName}
+                  onChange={(e) => setSourceName(e.target.value)}
+                />
+              </div>
+            </>
+          )}
           <div className="grid gap-2">
             <Label htmlFor="description">Description (optional)</Label>
             <Input
               id="description"
-              placeholder="e.g., Cards received for my birthday"
+              placeholder={
+                listType === "owned"
+                  ? "e.g., Cards received for my birthday"
+                  : "e.g., Cards I want for my Commander deck"
+              }
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
