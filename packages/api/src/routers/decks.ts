@@ -8,6 +8,11 @@ import { protectedProcedure } from "../index";
 import { parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
+import {
+  deckPublisher,
+  deckCardPublisher,
+  toDeckReplicationDoc,
+} from "../publishers/deck-publisher";
 
 /**
  * Check if an error is a SQLite foreign key constraint violation
@@ -146,6 +151,18 @@ export const decksRouter = {
           description: input.description ?? null,
         })
         .returning();
+
+      // Publish event to notify connected clients
+      if (newDeck) {
+        const replicationDoc = toDeckReplicationDoc(newDeck);
+        deckPublisher.publish(userId, {
+          documents: [replicationDoc],
+          checkpoint: {
+            id: replicationDoc.id,
+            updatedAt: replicationDoc.updatedAt,
+          },
+        });
+      }
 
       return newDeck;
     }),
@@ -290,6 +307,12 @@ export const decksRouter = {
         }
       }
 
+      // Emit RESYNC to notify connected clients to re-sync deck cards
+      // This is more efficient than publishing each card individually for bulk imports
+      if (importedCount > 0) {
+        deckCardPublisher.publish(userId, "RESYNC");
+      }
+
       return {
         deckId: input.deckId,
         format: input.format,
@@ -398,6 +421,33 @@ export const decksRouter = {
 
       // Delete the deck (cascades to deck_card entries via foreign key)
       await db.delete(deck).where(eq(deck.id, input.id));
+
+      // Publish deletion event to notify connected clients
+      // We create a minimal doc with _deleted: true for RxDB to handle the deletion
+      const now = Date.now();
+      deckPublisher.publish(userId, {
+        documents: [
+          {
+            id: input.id,
+            userId,
+            name: existingDeck.name,
+            format: "",
+            status: "",
+            archetype: null,
+            colorIdentity: null,
+            description: null,
+            isPublic: false,
+            sortOrder: 0,
+            createdAt: now,
+            updatedAt: now,
+            _deleted: true,
+          },
+        ],
+        checkpoint: {
+          id: input.id,
+          updatedAt: now,
+        },
+      });
 
       return { success: true, deletedDeckName: existingDeck.name };
     }),

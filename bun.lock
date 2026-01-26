@@ -130,6 +130,7 @@
         "react": "19.2.3",
         "react-dom": "19.2.3",
         "rxdb": "catalog:",
+        "rxjs": "^7.8.2",
         "shadcn": "^3.6.2",
         "sonner": "^2.0.5",
         "tailwind-merge": "^3.3.1",

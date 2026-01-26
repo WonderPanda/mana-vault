@@ -8,9 +8,16 @@ import {
   virtualListCard,
 } from "@mana-vault/db/schema/app";
 import { and, eq, gt, or, asc, sql } from "drizzle-orm";
+import { eventIterator } from "@orpc/server";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
+import {
+  deckPublisher,
+  deckCardPublisher,
+  type DeckStreamEvent,
+  type DeckCardStreamEvent,
+} from "../publishers/deck-publisher";
 
 /**
  * Checkpoint schema for RxDB replication.
@@ -135,6 +142,26 @@ export const syncRouter = {
           checkpoint: newCheckpoint,
         };
       }),
+
+    /**
+     * Stream endpoint for live deck replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * The stream emits events when decks are created, updated, or deleted.
+     * Clients should use this with RxDB's pull.stream$ for live replication.
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<DeckStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to deck events for this user
+        for await (const event of deckPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
+      }),
   },
 
   deckCards: {
@@ -232,6 +259,27 @@ export const syncRouter = {
           documents: rxdbDocuments,
           checkpoint: newCheckpoint,
         };
+      }),
+
+    /**
+     * Stream endpoint for live deck card replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * The stream can emit:
+     * - Document updates with checkpoint (for individual card changes)
+     * - 'RESYNC' signal (after bulk imports to trigger full re-sync)
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<DeckCardStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to deck card events for this user
+        for await (const event of deckCardPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
       }),
   },
 

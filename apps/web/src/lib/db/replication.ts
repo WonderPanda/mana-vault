@@ -1,6 +1,8 @@
 import { replicateRxCollection } from "rxdb/plugins/replication";
+import { Subject } from "rxjs";
 
 import type { RxReplicationState } from "rxdb/plugins/replication";
+import type { RxReplicationPullStreamItem } from "rxdb";
 import type { DeckDoc, DeckCardDoc, ScryfallCardDoc, ManaVaultDatabase } from "./db";
 import type { AppRouterClient } from "@mana-vault/api/routers/index";
 
@@ -14,8 +16,102 @@ export interface ReplicationCheckpoint {
 }
 
 /**
- * Sets up pull-only replication for the decks collection.
- * Uses oRPC to fetch documents from the server.
+ * Creates an RxJS Subject that subscribes to an oRPC event iterator (SSE stream)
+ * and emits events in the format expected by RxDB's pull.stream$.
+ *
+ * When the connection is lost, it emits 'RESYNC' to trigger checkpoint iteration.
+ *
+ * @param streamFn - Async function that returns the async iterator from oRPC
+ * @returns Subject that emits RxReplicationPullStreamItem events
+ */
+function createPullStream<RxDocType extends { _deleted: boolean }, CheckpointType>(
+  streamFn: () => Promise<
+    AsyncIterable<{
+      documents: RxDocType[];
+      checkpoint: CheckpointType | null;
+    }>
+  >,
+): Subject<RxReplicationPullStreamItem<RxDocType, CheckpointType>> {
+  const subject = new Subject<RxReplicationPullStreamItem<RxDocType, CheckpointType>>();
+
+  // Start consuming the stream
+  (async () => {
+    try {
+      // oRPC returns a promise that resolves to the async iterator
+      const iterator = await streamFn();
+      for await (const event of iterator) {
+        // RxDB expects checkpoint to be non-null in stream events
+        // If null, we skip emitting (shouldn't happen in practice)
+        if (event.checkpoint !== null) {
+          subject.next({
+            documents: event.documents,
+            checkpoint: event.checkpoint,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Pull stream error, triggering RESYNC:", error);
+      // Emit RESYNC to tell RxDB to switch back to checkpoint iteration
+      subject.next("RESYNC");
+    }
+  })();
+
+  return subject;
+}
+
+/**
+ * Creates an RxJS Subject for streams that can emit either documents or 'RESYNC'.
+ * This is used for bulk operations where emitting individual documents is inefficient.
+ *
+ * @param streamFn - Async function that returns the async iterator from oRPC
+ * @returns Subject that emits RxReplicationPullStreamItem events
+ */
+function createPullStreamWithResync<RxDocType extends { _deleted: boolean }, CheckpointType>(
+  streamFn: () => Promise<
+    AsyncIterable<
+      | {
+          documents: RxDocType[];
+          checkpoint: CheckpointType | null;
+        }
+      | "RESYNC"
+    >
+  >,
+): Subject<RxReplicationPullStreamItem<RxDocType, CheckpointType>> {
+  const subject = new Subject<RxReplicationPullStreamItem<RxDocType, CheckpointType>>();
+
+  // Start consuming the stream
+  (async () => {
+    try {
+      // oRPC returns a promise that resolves to the async iterator
+      const iterator = await streamFn();
+      for await (const event of iterator) {
+        // Handle RESYNC signal from server (used after bulk imports)
+        if (event === "RESYNC") {
+          subject.next("RESYNC");
+          continue;
+        }
+
+        // RxDB expects checkpoint to be non-null in stream events
+        if (event.checkpoint !== null) {
+          subject.next({
+            documents: event.documents,
+            checkpoint: event.checkpoint,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Pull stream error, triggering RESYNC:", error);
+      // Emit RESYNC to tell RxDB to switch back to checkpoint iteration
+      subject.next("RESYNC");
+    }
+  })();
+
+  return subject;
+}
+
+/**
+ * Sets up live replication for the decks collection with pullStream$.
+ * Uses oRPC to fetch documents from the server and SSE for real-time updates.
  *
  * @param db - The RxDB database instance
  * @param client - The oRPC client instance
@@ -25,6 +121,11 @@ export function setupDeckReplication(
   db: ManaVaultDatabase,
   client: AppRouterClient,
 ): RxReplicationState<DeckDoc, ReplicationCheckpoint> {
+  // Create the pull stream that connects to the SSE endpoint
+  const pullStream$ = createPullStream<DeckDoc, ReplicationCheckpoint>(() =>
+    client.sync.decks.stream({}),
+  );
+
   const replicationState = replicateRxCollection<DeckDoc, ReplicationCheckpoint>({
     collection: db.decks,
     replicationIdentifier: "deck-pull-replication",
@@ -45,12 +146,14 @@ export function setupDeckReplication(
         };
       },
       batchSize: 50,
+      // Connect the SSE stream for live updates
+      stream$: pullStream$,
     },
     autoStart: true,
     // No push handler - pull-only replication
     push: undefined,
-    // No live streaming for now - just one-time sync
-    live: false,
+    // Enable live streaming mode
+    live: true,
     // Retry on error
     retryTime: 5000,
   });
@@ -68,8 +171,10 @@ export function setupDeckReplication(
 }
 
 /**
- * Sets up pull-only replication for the deck_cards collection.
+ * Sets up live replication for the deck_cards collection with pullStream$.
  * Syncs all deck cards for decks owned by the user.
+ *
+ * The stream supports 'RESYNC' signals for efficient bulk import handling.
  *
  * @param db - The RxDB database instance
  * @param client - The oRPC client instance
@@ -79,6 +184,12 @@ export function setupDeckCardReplication(
   db: ManaVaultDatabase,
   client: AppRouterClient,
 ): RxReplicationState<DeckCardDoc, ReplicationCheckpoint> {
+  // Create the pull stream that connects to the SSE endpoint
+  // This stream can emit documents or 'RESYNC' (for bulk imports)
+  const pullStream$ = createPullStreamWithResync<DeckCardDoc, ReplicationCheckpoint>(() =>
+    client.sync.deckCards.stream({}),
+  );
+
   const replicationState = replicateRxCollection<DeckCardDoc, ReplicationCheckpoint>({
     collection: db.deck_cards,
     replicationIdentifier: "deck-card-pull-replication",
@@ -99,12 +210,14 @@ export function setupDeckCardReplication(
         };
       },
       batchSize: 100,
+      // Connect the SSE stream for live updates
+      stream$: pullStream$,
     },
     autoStart: true,
     // No push handler - pull-only replication
     push: undefined,
-    // No live streaming for now - just one-time sync
-    live: false,
+    // Enable live streaming mode
+    live: true,
     // Retry on error
     retryTime: 5000,
   });
