@@ -10,6 +10,9 @@ import {
   setupDeckReplication,
   setupDeckCardReplication,
   setupScryfallCardReplication,
+  setupCollectionCardReplication,
+  setupCollectionCardLocationReplication,
+  setupStorageContainerReplication,
 } from "./replication";
 import type { ReplicationCheckpoint } from "./replication";
 import { client } from "@/utils/orpc";
@@ -129,6 +132,78 @@ const deckCardSchema: RxJsonSchema<DeckCardDoc> = {
   indexes: ["deckId", "oracleId", ["deckId", "isCommander"]],
 };
 
+const collectionCardSchema: RxJsonSchema<CollectionCardDoc> = {
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    userId: { type: "string" },
+    scryfallCardId: { type: "string" },
+    condition: { type: "string" }, // NM, LP, MP, HP, DMG
+    isFoil: { type: "boolean" },
+    language: { type: "string" },
+    notes: { type: ["string", "null"] },
+    acquiredAt: { type: ["number", "null"] },
+    acquiredFrom: { type: ["string", "null"] },
+    status: { type: "string" }, // owned, traded, sold, lost
+    removedAt: { type: ["number", "null"] },
+    createdAt: { type: "number" },
+    updatedAt: { type: "number" },
+    _deleted: { type: "boolean" }, // Required for RxDB replication
+  },
+  required: [
+    "id",
+    "userId",
+    "scryfallCardId",
+    "condition",
+    "isFoil",
+    "language",
+    "status",
+    "createdAt",
+    "updatedAt",
+    "_deleted",
+  ],
+  indexes: ["userId", "scryfallCardId", ["userId", "status"], ["userId", "scryfallCardId"]],
+};
+
+const storageContainerSchema: RxJsonSchema<StorageContainerDoc> = {
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    userId: { type: "string" },
+    name: { type: "string" },
+    type: { type: "string" }, // binder, box, deck_box, other
+    description: { type: ["string", "null"] },
+    sortOrder: { type: "number" },
+    createdAt: { type: "number" },
+    updatedAt: { type: "number" },
+    _deleted: { type: "boolean" }, // Required for RxDB replication
+  },
+  required: ["id", "userId", "name", "type", "sortOrder", "createdAt", "updatedAt", "_deleted"],
+  indexes: ["userId"],
+};
+
+const collectionCardLocationSchema: RxJsonSchema<CollectionCardLocationDoc> = {
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    collectionCardId: { type: "string" },
+    storageContainerId: { type: ["string", "null"] },
+    deckId: { type: ["string", "null"] },
+    assignedAt: { type: "number" },
+    _deleted: { type: "boolean" }, // Required for RxDB replication
+  },
+  required: ["id", "collectionCardId", "assignedAt", "_deleted"],
+  // Note: Can't index storageContainerId or deckId since they're nullable
+  // RxDB requires indexed fields to be in the required array
+  indexes: ["collectionCardId"],
+};
+
 // =============================================================================
 // TypeScript Types
 // =============================================================================
@@ -188,6 +263,44 @@ export interface DeckCardDoc {
   _deleted: boolean; // Required for RxDB replication
 }
 
+export interface CollectionCardDoc {
+  id: string;
+  userId: string;
+  scryfallCardId: string;
+  condition: string;
+  isFoil: boolean;
+  language: string;
+  notes: string | null;
+  acquiredAt: number | null;
+  acquiredFrom: string | null;
+  status: string;
+  removedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+  _deleted: boolean; // Required for RxDB replication
+}
+
+export interface CollectionCardLocationDoc {
+  id: string;
+  collectionCardId: string;
+  storageContainerId: string | null;
+  deckId: string | null;
+  assignedAt: number;
+  _deleted: boolean; // Required for RxDB replication
+}
+
+export interface StorageContainerDoc {
+  id: string;
+  userId: string;
+  name: string;
+  type: string;
+  description: string | null;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+  _deleted: boolean; // Required for RxDB replication
+}
+
 // =============================================================================
 // Database Types
 // =============================================================================
@@ -196,6 +309,9 @@ export type DatabaseCollections = {
   scryfall_cards: RxCollection<ScryfallCardDoc>;
   decks: RxCollection<DeckDoc>;
   deck_cards: RxCollection<DeckCardDoc>;
+  collection_cards: RxCollection<CollectionCardDoc>;
+  collection_card_locations: RxCollection<CollectionCardLocationDoc>;
+  storage_containers: RxCollection<StorageContainerDoc>;
 };
 
 export type ManaVaultDatabase = RxDatabase<DatabaseCollections>;
@@ -226,11 +342,26 @@ async function initializeDb() {
     deck_cards: {
       schema: deckCardSchema,
     },
+    collection_cards: {
+      schema: collectionCardSchema,
+    },
+    collection_card_locations: {
+      schema: collectionCardLocationSchema,
+    },
+    storage_containers: {
+      schema: storageContainerSchema,
+    },
   });
 
-  // Set up replication for decks, deck cards, and scryfall cards
+  // Set up replication for all collections
   const deckReplicationState = setupDeckReplication(database, client);
   const deckCardReplicationState = setupDeckCardReplication(database, client);
+  const storageContainerReplicationState = setupStorageContainerReplication(database, client);
+  const collectionCardReplicationState = setupCollectionCardReplication(database, client);
+  const collectionCardLocationReplicationState = setupCollectionCardLocationReplication(
+    database,
+    client,
+  );
   const scryfallCardReplicationState = setupScryfallCardReplication(database, client);
 
   const deckCollection = createCollection(
@@ -245,6 +376,24 @@ async function initializeDb() {
     }),
   );
 
+  const storageContainerCollection = createCollection(
+    rxdbCollectionOptions({
+      rxCollection: database.storage_containers,
+    }),
+  );
+
+  const collectionCardCollection = createCollection(
+    rxdbCollectionOptions({
+      rxCollection: database.collection_cards,
+    }),
+  );
+
+  const collectionCardLocationCollection = createCollection(
+    rxdbCollectionOptions({
+      rxCollection: database.collection_card_locations,
+    }),
+  );
+
   const scryfallCardCollection = createCollection(
     rxdbCollectionOptions({
       rxCollection: database.scryfall_cards,
@@ -255,9 +404,15 @@ async function initializeDb() {
     rxdb: database,
     deckReplicationState,
     deckCardReplicationState,
+    storageContainerReplicationState,
+    collectionCardReplicationState,
+    collectionCardLocationReplicationState,
     scryfallCardReplicationState,
     deckCollection,
     deckCardCollection,
+    storageContainerCollection,
+    collectionCardCollection,
+    collectionCardLocationCollection,
     scryfallCardCollection,
   };
 }

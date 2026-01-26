@@ -58,15 +58,17 @@ export const Route = createFileRoute("/(app)/_authed")({
 
     const db = await getOrCreateDb();
 
-    await queryClient.ensureQueryData({
-      queryKey: ["initialSync"],
-      queryFn: async () => {
-        await executeInitialSync(db.rxdb, client);
-        return { success: true };
-      },
+    // TODO: Revisit if this is needed
 
-      staleTime: Infinity,
-    });
+    // await queryClient.ensureQueryData({
+    //   queryKey: ["initialSync"],
+    //   queryFn: async () => {
+    //     await executeInitialSync(db.rxdb, client);
+    //     return { success: true };
+    //   },
+
+    //   staleTime: Infinity,
+    // });
 
     return { session: session.data, customerState, db };
   },

@@ -28,6 +28,7 @@
     "@tanstack/react-form": "^1.12.3",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "^1.141.1",
+    "@tanstack/react-virtual": "^3.13.18",
     "@tanstack/rxdb-db-collection": "catalog:",
     "better-auth": "catalog:",
     "class-variance-authority": "^0.7.1",

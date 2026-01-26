@@ -1,7 +1,7 @@
-import { ORPCError } from "@orpc/server";
+import { ORPCError, eventIterator } from "@orpc/server";
 import { db } from "@mana-vault/db";
 import { deck, deckCard, scryfallCard } from "@mana-vault/db/schema/app";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
@@ -12,7 +12,22 @@ import {
   deckPublisher,
   deckCardPublisher,
   toDeckReplicationDoc,
+  type DeckStreamEvent,
+  type DeckCardStreamEvent,
 } from "../publishers/deck-publisher";
+
+/**
+ * Checkpoint schema for RxDB replication.
+ * Uses updatedAt (timestamp) + id for stable ordering.
+ */
+const checkpointSchema = z
+  .object({
+    id: z.string(),
+    updatedAt: z.number(),
+  })
+  .nullable();
+
+type ReplicationCheckpoint = z.infer<typeof checkpointSchema>;
 
 /**
  * Check if an error is a SQLite foreign key constraint violation
@@ -451,4 +466,253 @@ export const decksRouter = {
 
       return { success: true, deletedDeckName: existingDeck.name };
     }),
+
+  // =============================================================================
+  // Sync Endpoints for RxDB Replication
+  // =============================================================================
+
+  sync: {
+    /**
+     * Pull endpoint for deck replication.
+     * Returns documents modified after the given checkpoint.
+     */
+    pull: protectedProcedure
+      .input(
+        z.object({
+          checkpoint: checkpointSchema,
+          batchSize: z.number().min(1).max(100).default(50),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { checkpoint, batchSize } = input;
+
+        // Build query conditions
+        const userCondition = eq(deck.userId, userId);
+
+        let documents;
+        if (checkpoint) {
+          // Get documents after the checkpoint
+          // We compare updatedAt first, then id for stable ordering when timestamps match
+          documents = await db
+            .select({
+              id: deck.id,
+              userId: deck.userId,
+              name: deck.name,
+              format: deck.format,
+              status: deck.status,
+              archetype: deck.archetype,
+              colorIdentity: deck.colorIdentity,
+              description: deck.description,
+              isPublic: deck.isPublic,
+              sortOrder: deck.sortOrder,
+              createdAt: deck.createdAt,
+              updatedAt: deck.updatedAt,
+            })
+            .from(deck)
+            .where(
+              and(
+                userCondition,
+                or(
+                  gt(deck.updatedAt, new Date(checkpoint.updatedAt)),
+                  and(
+                    eq(deck.updatedAt, new Date(checkpoint.updatedAt)),
+                    gt(deck.id, checkpoint.id),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(asc(deck.updatedAt), asc(deck.id))
+            .limit(batchSize);
+        } else {
+          // Initial sync - get all documents
+          documents = await db
+            .select({
+              id: deck.id,
+              userId: deck.userId,
+              name: deck.name,
+              format: deck.format,
+              status: deck.status,
+              archetype: deck.archetype,
+              colorIdentity: deck.colorIdentity,
+              description: deck.description,
+              isPublic: deck.isPublic,
+              sortOrder: deck.sortOrder,
+              createdAt: deck.createdAt,
+              updatedAt: deck.updatedAt,
+            })
+            .from(deck)
+            .where(userCondition)
+            .orderBy(asc(deck.updatedAt), asc(deck.id))
+            .limit(batchSize);
+        }
+
+        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        const rxdbDocuments = documents.map((doc) => ({
+          id: doc.id,
+          userId: doc.userId,
+          name: doc.name,
+          format: doc.format,
+          status: doc.status,
+          archetype: doc.archetype,
+          colorIdentity: doc.colorIdentity,
+          description: doc.description,
+          isPublic: doc.isPublic,
+          sortOrder: doc.sortOrder,
+          createdAt: doc.createdAt.getTime(),
+          updatedAt: doc.updatedAt.getTime(),
+          _deleted: false, // TODO: implement soft deletes on server to sync deletions
+        }));
+
+        // Calculate new checkpoint
+        const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
+        const newCheckpoint: ReplicationCheckpoint = lastDoc
+          ? { id: lastDoc.id, updatedAt: lastDoc.updatedAt }
+          : checkpoint;
+
+        return {
+          documents: rxdbDocuments,
+          checkpoint: newCheckpoint,
+        };
+      }),
+
+    /**
+     * Stream endpoint for live deck replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * The stream emits events when decks are created, updated, or deleted.
+     * Clients should use this with RxDB's pull.stream$ for live replication.
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<DeckStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to deck events for this user
+        for await (const event of deckPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
+      }),
+  },
+
+  cardSync: {
+    /**
+     * Pull endpoint for deck card replication.
+     * Returns deck cards for all decks owned by the user.
+     */
+    pull: protectedProcedure
+      .input(
+        z.object({
+          checkpoint: checkpointSchema,
+          batchSize: z.number().min(1).max(200).default(100),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { checkpoint, batchSize } = input;
+
+        // Base select fields for deck cards
+        const selectFields = {
+          id: deckCard.id,
+          deckId: deckCard.deckId,
+          oracleId: deckCard.oracleId,
+          preferredScryfallId: deckCard.preferredScryfallId,
+          quantity: deckCard.quantity,
+          board: deckCard.board,
+          isCommander: deckCard.isCommander,
+          isCompanion: deckCard.isCompanion,
+          collectionCardId: deckCard.collectionCardId,
+          isProxy: deckCard.isProxy,
+          sortOrder: deckCard.sortOrder,
+          createdAt: deckCard.createdAt,
+          updatedAt: deckCard.updatedAt,
+        };
+
+        let documents;
+        if (checkpoint) {
+          // Get documents after the checkpoint
+          // Use inner join to filter by user's decks
+          documents = await db
+            .select(selectFields)
+            .from(deckCard)
+            .innerJoin(deck, eq(deckCard.deckId, deck.id))
+            .where(
+              and(
+                eq(deck.userId, userId),
+                or(
+                  gt(deckCard.updatedAt, new Date(checkpoint.updatedAt)),
+                  and(
+                    eq(deckCard.updatedAt, new Date(checkpoint.updatedAt)),
+                    gt(deckCard.id, checkpoint.id),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(asc(deckCard.updatedAt), asc(deckCard.id))
+            .limit(batchSize);
+        } else {
+          // Initial sync - get all deck cards for user's decks
+          // Use inner join to filter by user's decks
+          documents = await db
+            .select(selectFields)
+            .from(deckCard)
+            .innerJoin(deck, eq(deckCard.deckId, deck.id))
+            .where(eq(deck.userId, userId))
+            .orderBy(asc(deckCard.updatedAt), asc(deckCard.id))
+            .limit(batchSize);
+        }
+
+        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        const rxdbDocuments = documents.map((doc) => ({
+          id: doc.id,
+          deckId: doc.deckId,
+          oracleId: doc.oracleId,
+          preferredScryfallId: doc.preferredScryfallId,
+          quantity: doc.quantity,
+          board: doc.board,
+          isCommander: doc.isCommander,
+          isCompanion: doc.isCompanion,
+          collectionCardId: doc.collectionCardId,
+          isProxy: doc.isProxy,
+          sortOrder: doc.sortOrder,
+          createdAt: doc.createdAt.getTime(),
+          updatedAt: doc.updatedAt.getTime(),
+          _deleted: false, // TODO: implement soft deletes on server to sync deletions
+        }));
+
+        // Calculate new checkpoint
+        const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
+        const newCheckpoint: ReplicationCheckpoint = lastDoc
+          ? { id: lastDoc.id, updatedAt: lastDoc.updatedAt }
+          : checkpoint;
+
+        return {
+          documents: rxdbDocuments,
+          checkpoint: newCheckpoint,
+        };
+      }),
+
+    /**
+     * Stream endpoint for live deck card replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * The stream can emit:
+     * - Document updates with checkpoint (for individual card changes)
+     * - 'RESYNC' signal (after bulk imports to trigger full re-sync)
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<DeckCardStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to deck card events for this user
+        for await (const event of deckCardPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
+      }),
+  },
 };

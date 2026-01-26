@@ -1,15 +1,37 @@
-import { ORPCError } from "@orpc/server";
+import { ORPCError, eventIterator } from "@orpc/server";
 import { db } from "@mana-vault/db";
 import {
   storageContainer,
   collectionCard,
   collectionCardLocation,
 } from "@mana-vault/db/schema/app";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
 import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
+import {
+  collectionCardPublisher,
+  collectionCardLocationPublisher,
+  storageContainerPublisher,
+  toStorageContainerReplicationDoc,
+  type CollectionCardStreamEvent,
+  type CollectionCardLocationStreamEvent,
+  type StorageContainerStreamEvent,
+} from "../publishers/collection-publisher";
+
+/**
+ * Checkpoint schema for RxDB replication.
+ * Uses updatedAt (timestamp) + id for stable ordering.
+ */
+const checkpointSchema = z
+  .object({
+    id: z.string(),
+    updatedAt: z.number(),
+  })
+  .nullable();
+
+type ReplicationCheckpoint = z.infer<typeof checkpointSchema>;
 
 /**
  * Check if an error is a SQLite foreign key constraint violation
@@ -93,6 +115,18 @@ export const collectionsRouter = {
           description: input.description ?? null,
         })
         .returning();
+
+      // Publish event to notify connected clients
+      if (collection) {
+        const replicationDoc = toStorageContainerReplicationDoc(collection);
+        storageContainerPublisher.publish(userId, {
+          documents: [replicationDoc],
+          checkpoint: {
+            id: replicationDoc.id,
+            updatedAt: replicationDoc.updatedAt,
+          },
+        });
+      }
 
       return collection;
     }),
@@ -235,6 +269,15 @@ export const collectionsRouter = {
 
       const totalQuantity = parseResult.rows.reduce((sum, row) => sum + row.quantity, 0);
 
+      // Trigger RESYNC for live replication subscribers after bulk import
+      if (importedCount > 0) {
+        collectionCardPublisher.publish(userId, "RESYNC");
+        // Also trigger location resync since new cards may have been assigned to a container
+        if (input.collectionId) {
+          collectionCardLocationPublisher.publish(userId, "RESYNC");
+        }
+      }
+
       return {
         collectionId: input.collectionId ?? null,
         format: input.format,
@@ -272,6 +315,365 @@ export const collectionsRouter = {
       // Delete the collection (card locations will have storageContainerId set to null via onDelete: "set null")
       await db.delete(storageContainer).where(eq(storageContainer.id, input.id));
 
+      // Publish deletion event to notify connected clients
+      const now = Date.now();
+      storageContainerPublisher.publish(userId, {
+        documents: [
+          {
+            id: input.id,
+            userId,
+            name: collection.name,
+            type: "",
+            description: null,
+            sortOrder: 0,
+            createdAt: now,
+            updatedAt: now,
+            _deleted: true,
+          },
+        ],
+        checkpoint: {
+          id: input.id,
+          updatedAt: now,
+        },
+      });
+
       return { success: true, deletedCollectionName: collection.name };
     }),
+
+  // =============================================================================
+  // Sync Endpoints for RxDB Replication
+  // =============================================================================
+
+  sync: {
+    /**
+     * Pull endpoint for storage container (collection) replication.
+     * Returns all storage containers owned by the user.
+     */
+    pull: protectedProcedure
+      .input(
+        z.object({
+          checkpoint: checkpointSchema,
+          batchSize: z.number().min(1).max(100).default(50),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { checkpoint, batchSize } = input;
+
+        // Build query conditions
+        const userCondition = eq(storageContainer.userId, userId);
+
+        let documents;
+        if (checkpoint) {
+          // Get documents after the checkpoint
+          documents = await db
+            .select({
+              id: storageContainer.id,
+              userId: storageContainer.userId,
+              name: storageContainer.name,
+              type: storageContainer.type,
+              description: storageContainer.description,
+              sortOrder: storageContainer.sortOrder,
+              createdAt: storageContainer.createdAt,
+              updatedAt: storageContainer.updatedAt,
+            })
+            .from(storageContainer)
+            .where(
+              and(
+                userCondition,
+                or(
+                  gt(storageContainer.updatedAt, new Date(checkpoint.updatedAt)),
+                  and(
+                    eq(storageContainer.updatedAt, new Date(checkpoint.updatedAt)),
+                    gt(storageContainer.id, checkpoint.id),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(asc(storageContainer.updatedAt), asc(storageContainer.id))
+            .limit(batchSize);
+        } else {
+          // Initial sync - get all documents
+          documents = await db
+            .select({
+              id: storageContainer.id,
+              userId: storageContainer.userId,
+              name: storageContainer.name,
+              type: storageContainer.type,
+              description: storageContainer.description,
+              sortOrder: storageContainer.sortOrder,
+              createdAt: storageContainer.createdAt,
+              updatedAt: storageContainer.updatedAt,
+            })
+            .from(storageContainer)
+            .where(userCondition)
+            .orderBy(asc(storageContainer.updatedAt), asc(storageContainer.id))
+            .limit(batchSize);
+        }
+
+        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        const rxdbDocuments = documents.map((doc) => ({
+          id: doc.id,
+          userId: doc.userId,
+          name: doc.name,
+          type: doc.type,
+          description: doc.description,
+          sortOrder: doc.sortOrder,
+          createdAt: doc.createdAt.getTime(),
+          updatedAt: doc.updatedAt.getTime(),
+          _deleted: false,
+        }));
+
+        // Calculate new checkpoint
+        const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
+        const newCheckpoint: ReplicationCheckpoint = lastDoc
+          ? { id: lastDoc.id, updatedAt: lastDoc.updatedAt }
+          : checkpoint;
+
+        return {
+          documents: rxdbDocuments,
+          checkpoint: newCheckpoint,
+        };
+      }),
+
+    /**
+     * Stream endpoint for live storage container replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<StorageContainerStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to storage container events for this user
+        for await (const event of storageContainerPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
+      }),
+  },
+
+  cardSync: {
+    /**
+     * Pull endpoint for collection card replication.
+     * Returns all collection cards owned by the user.
+     */
+    pull: protectedProcedure
+      .input(
+        z.object({
+          checkpoint: checkpointSchema,
+          batchSize: z.number().min(1).max(200).default(100),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { checkpoint, batchSize } = input;
+
+        // Base select fields for collection cards
+        const selectFields = {
+          id: collectionCard.id,
+          userId: collectionCard.userId,
+          scryfallCardId: collectionCard.scryfallCardId,
+          condition: collectionCard.condition,
+          isFoil: collectionCard.isFoil,
+          language: collectionCard.language,
+          notes: collectionCard.notes,
+          acquiredAt: collectionCard.acquiredAt,
+          acquiredFrom: collectionCard.acquiredFrom,
+          status: collectionCard.status,
+          removedAt: collectionCard.removedAt,
+          createdAt: collectionCard.createdAt,
+          updatedAt: collectionCard.updatedAt,
+        };
+
+        let documents;
+        if (checkpoint) {
+          // Get documents after the checkpoint
+          documents = await db
+            .select(selectFields)
+            .from(collectionCard)
+            .where(
+              and(
+                eq(collectionCard.userId, userId),
+                or(
+                  gt(collectionCard.updatedAt, new Date(checkpoint.updatedAt)),
+                  and(
+                    eq(collectionCard.updatedAt, new Date(checkpoint.updatedAt)),
+                    gt(collectionCard.id, checkpoint.id),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(asc(collectionCard.updatedAt), asc(collectionCard.id))
+            .limit(batchSize);
+        } else {
+          // Initial sync - get all collection cards for user
+          documents = await db
+            .select(selectFields)
+            .from(collectionCard)
+            .where(eq(collectionCard.userId, userId))
+            .orderBy(asc(collectionCard.updatedAt), asc(collectionCard.id))
+            .limit(batchSize);
+        }
+
+        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        const rxdbDocuments = documents.map((doc) => ({
+          id: doc.id,
+          userId: doc.userId,
+          scryfallCardId: doc.scryfallCardId,
+          condition: doc.condition,
+          isFoil: doc.isFoil,
+          language: doc.language,
+          notes: doc.notes,
+          acquiredAt: doc.acquiredAt?.getTime() ?? null,
+          acquiredFrom: doc.acquiredFrom,
+          status: doc.status,
+          removedAt: doc.removedAt?.getTime() ?? null,
+          createdAt: doc.createdAt.getTime(),
+          updatedAt: doc.updatedAt.getTime(),
+          _deleted: false, // Collection cards use soft delete via status field
+        }));
+
+        // Calculate new checkpoint
+        const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
+        const newCheckpoint: ReplicationCheckpoint = lastDoc
+          ? { id: lastDoc.id, updatedAt: lastDoc.updatedAt }
+          : checkpoint;
+
+        return {
+          documents: rxdbDocuments,
+          checkpoint: newCheckpoint,
+        };
+      }),
+
+    /**
+     * Stream endpoint for live collection card replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * The stream can emit:
+     * - Document updates with checkpoint (for individual card changes)
+     * - 'RESYNC' signal (after bulk imports to trigger full re-sync)
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<CollectionCardStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to collection card events for this user
+        for await (const event of collectionCardPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
+      }),
+  },
+
+  locationSync: {
+    /**
+     * Pull endpoint for collection card location replication.
+     * Returns all card locations for the user's collection cards.
+     */
+    pull: protectedProcedure
+      .input(
+        z.object({
+          checkpoint: checkpointSchema,
+          batchSize: z.number().min(1).max(200).default(100),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { checkpoint, batchSize } = input;
+
+        // Base select fields for collection card locations
+        const selectFields = {
+          id: collectionCardLocation.id,
+          collectionCardId: collectionCardLocation.collectionCardId,
+          storageContainerId: collectionCardLocation.storageContainerId,
+          deckId: collectionCardLocation.deckId,
+          assignedAt: collectionCardLocation.assignedAt,
+        };
+
+        let documents;
+        if (checkpoint) {
+          // Get documents after the checkpoint
+          // Join with collection_card to filter by user
+          documents = await db
+            .select(selectFields)
+            .from(collectionCardLocation)
+            .innerJoin(
+              collectionCard,
+              eq(collectionCardLocation.collectionCardId, collectionCard.id),
+            )
+            .where(
+              and(
+                eq(collectionCard.userId, userId),
+                or(
+                  gt(collectionCardLocation.assignedAt, new Date(checkpoint.updatedAt)),
+                  and(
+                    eq(collectionCardLocation.assignedAt, new Date(checkpoint.updatedAt)),
+                    gt(collectionCardLocation.id, checkpoint.id),
+                  ),
+                ),
+              ),
+            )
+            .orderBy(asc(collectionCardLocation.assignedAt), asc(collectionCardLocation.id))
+            .limit(batchSize);
+        } else {
+          // Initial sync - get all locations for user's collection cards
+          documents = await db
+            .select(selectFields)
+            .from(collectionCardLocation)
+            .innerJoin(
+              collectionCard,
+              eq(collectionCardLocation.collectionCardId, collectionCard.id),
+            )
+            .where(eq(collectionCard.userId, userId))
+            .orderBy(asc(collectionCardLocation.assignedAt), asc(collectionCardLocation.id))
+            .limit(batchSize);
+        }
+
+        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        const rxdbDocuments = documents.map((doc) => ({
+          id: doc.id,
+          collectionCardId: doc.collectionCardId,
+          storageContainerId: doc.storageContainerId,
+          deckId: doc.deckId,
+          assignedAt: doc.assignedAt.getTime(),
+          _deleted: false,
+        }));
+
+        // Calculate new checkpoint (using assignedAt as updatedAt equivalent)
+        const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
+        const newCheckpoint: ReplicationCheckpoint = lastDoc
+          ? { id: lastDoc.id, updatedAt: lastDoc.assignedAt }
+          : checkpoint;
+
+        return {
+          documents: rxdbDocuments,
+          checkpoint: newCheckpoint,
+        };
+      }),
+
+    /**
+     * Stream endpoint for live collection card location replication.
+     * Uses Server-Sent Events (SSE) to push real-time updates to clients.
+     *
+     * The stream can emit:
+     * - Document updates with checkpoint (for individual location changes)
+     * - 'RESYNC' signal (after bulk imports to trigger full re-sync)
+     *
+     * @see https://rxdb.info/replication-http.html#pullstream-for-ongoing-changes
+     */
+    stream: protectedProcedure
+      .output(eventIterator(z.custom<CollectionCardLocationStreamEvent>()))
+      .handler(async function* ({ context, signal }) {
+        const userId = context.session.user.id;
+
+        // Subscribe to collection card location events for this user
+        for await (const event of collectionCardLocationPublisher.subscribe(userId, { signal })) {
+          yield event;
+        }
+      }),
+  },
 };

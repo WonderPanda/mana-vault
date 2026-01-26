@@ -7,6 +7,9 @@ type DbInstance = Awaited<ReturnType<typeof getOrCreateDb>>;
 interface DbContextValue {
   deckCollection: DbInstance["deckCollection"];
   deckCardCollection: DbInstance["deckCardCollection"];
+  storageContainerCollection: DbInstance["storageContainerCollection"];
+  collectionCardCollection: DbInstance["collectionCardCollection"];
+  collectionCardLocationCollection: DbInstance["collectionCardLocationCollection"];
   scryfallCardCollection: DbInstance["scryfallCardCollection"];
 }
 
@@ -27,6 +30,9 @@ export function DbProvider({ children, db }: DbProviderProps) {
       value={{
         deckCollection: db.deckCollection,
         deckCardCollection: db.deckCardCollection,
+        storageContainerCollection: db.storageContainerCollection,
+        collectionCardCollection: db.collectionCardCollection,
+        collectionCardLocationCollection: db.collectionCardLocationCollection,
         scryfallCardCollection: db.scryfallCardCollection,
       }}
     >

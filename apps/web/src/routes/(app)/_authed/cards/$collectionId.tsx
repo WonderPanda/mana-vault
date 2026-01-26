@@ -1,4 +1,4 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -28,33 +28,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCollectionCardsByContainer, useStorageContainer } from "@/hooks/use-collection-cards";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/cards/$collectionId")({
   component: CollectionDetailPage,
-  beforeLoad: async ({ context: { queryClient }, params }) => {
-    await Promise.all([
-      queryClient.ensureQueryData(
-        orpc.collections.get.queryOptions({ input: { id: params.collectionId } }),
-      ),
-      queryClient.ensureQueryData(
-        orpc.collections.getCards.queryOptions({
-          input: { collectionId: params.collectionId },
-        }),
-      ),
-    ]);
-  },
 });
 
 function CollectionDetailPage() {
   const { collectionId } = Route.useParams();
   const navigate = useNavigate();
-  const { data: collection } = useSuspenseQuery(
-    orpc.collections.get.queryOptions({ input: { id: collectionId } }),
-  );
-  const { data: cards } = useSuspenseQuery(
-    orpc.collections.getCards.queryOptions({ input: { collectionId } }),
-  );
+  const { data: collection } = useStorageContainer(collectionId);
+  const { data: cards = [] } = useCollectionCardsByContainer(collectionId);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -64,12 +49,7 @@ function CollectionDetailPage() {
     onSuccess: (data) => {
       toast.success(data.message);
       setIsImportOpen(false);
-      queryClient.invalidateQueries({
-        queryKey: orpc.collections.get.queryOptions({ input: { id: collectionId } }).queryKey,
-      });
-      queryClient.invalidateQueries({
-        queryKey: orpc.collections.getCards.queryOptions({ input: { collectionId } }).queryKey,
-      });
+      // Cards will appear via RxDB sync
     },
     onError: (error) => {
       toast.error(error.message || "Failed to import cards");
@@ -101,6 +81,10 @@ function CollectionDetailPage() {
   const handleDelete = () => {
     deleteMutation.mutate({ id: collectionId });
   };
+
+  if (!collection) {
+    return <CollectionDetailSkeleton />;
+  }
 
   const TypeIcon = collection.type === "binder" ? BookOpen : Box;
 
@@ -209,28 +193,25 @@ function CollectionDetailPage() {
           />
         ) : (
           <MtgCardGrid>
-            {cards.map((card) => {
-              if (!card.card) return null;
-              return (
-                <MtgCardItem
-                  key={card.id}
-                  card={{
-                    id: card.id,
-                    scryfallCard: {
-                      name: card.card.name,
-                      setCode: card.card.setCode,
-                      setName: card.card.setName,
-                      collectorNumber: card.card.collectorNumber,
-                      imageUri: card.card.imageUri,
-                    },
-                    condition: card.condition,
-                    isFoil: card.isFoil,
-                    language: card.language,
-                    isInCollection: true,
-                  }}
-                />
-              );
-            })}
+            {cards.map((card) => (
+              <MtgCardItem
+                key={card.id}
+                card={{
+                  id: card.id,
+                  scryfallCard: {
+                    name: card.scryfallCard.name,
+                    setCode: card.scryfallCard.setCode,
+                    setName: card.scryfallCard.setName,
+                    collectorNumber: card.scryfallCard.collectorNumber,
+                    imageUri: card.scryfallCard.imageUri,
+                  },
+                  condition: card.condition,
+                  isFoil: card.isFoil,
+                  language: card.language,
+                  isInCollection: true,
+                }}
+              />
+            ))}
           </MtgCardGrid>
         )}
       </PageContent>

@@ -3,7 +3,15 @@ import { Subject } from "rxjs";
 
 import type { RxReplicationState } from "rxdb/plugins/replication";
 import type { RxReplicationPullStreamItem } from "rxdb";
-import type { DeckDoc, DeckCardDoc, ScryfallCardDoc, ManaVaultDatabase } from "./db";
+import type {
+  DeckDoc,
+  DeckCardDoc,
+  ScryfallCardDoc,
+  CollectionCardDoc,
+  CollectionCardLocationDoc,
+  StorageContainerDoc,
+  ManaVaultDatabase,
+} from "./db";
 import type { AppRouterClient } from "@mana-vault/api/routers/index";
 
 /**
@@ -123,7 +131,7 @@ export function setupDeckReplication(
 ): RxReplicationState<DeckDoc, ReplicationCheckpoint> {
   // Create the pull stream that connects to the SSE endpoint
   const pullStream$ = createPullStream<DeckDoc, ReplicationCheckpoint>(() =>
-    client.sync.decks.stream({}),
+    client.decks.sync.stream({}),
   );
 
   const replicationState = replicateRxCollection<DeckDoc, ReplicationCheckpoint>({
@@ -134,7 +142,7 @@ export function setupDeckReplication(
         // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
         const checkpoint = checkpointOrNull ?? null;
 
-        const response = await client.sync.decks.pull({
+        const response = await client.decks.sync.pull({
           checkpoint,
           batchSize,
         });
@@ -187,7 +195,7 @@ export function setupDeckCardReplication(
   // Create the pull stream that connects to the SSE endpoint
   // This stream can emit documents or 'RESYNC' (for bulk imports)
   const pullStream$ = createPullStreamWithResync<DeckCardDoc, ReplicationCheckpoint>(() =>
-    client.sync.deckCards.stream({}),
+    client.decks.cardSync.stream({}),
   );
 
   const replicationState = replicateRxCollection<DeckCardDoc, ReplicationCheckpoint>({
@@ -198,7 +206,7 @@ export function setupDeckCardReplication(
         // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
         const checkpoint = checkpointOrNull ?? null;
 
-        const response = await client.sync.deckCards.pull({
+        const response = await client.decks.cardSync.pull({
           checkpoint,
           batchSize,
         });
@@ -235,6 +243,195 @@ export function setupDeckCardReplication(
 }
 
 /**
+ * Sets up live replication for the storage_containers collection with pullStream$.
+ * Syncs all storage containers (collections) owned by the user.
+ *
+ * @param db - The RxDB database instance
+ * @param client - The oRPC client instance
+ * @returns The replication state for monitoring/control
+ */
+export function setupStorageContainerReplication(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): RxReplicationState<StorageContainerDoc, ReplicationCheckpoint> {
+  // Create the pull stream that connects to the SSE endpoint
+  const pullStream$ = createPullStream<StorageContainerDoc, ReplicationCheckpoint>(() =>
+    client.collections.sync.stream({}),
+  );
+
+  const replicationState = replicateRxCollection<StorageContainerDoc, ReplicationCheckpoint>({
+    collection: db.storage_containers,
+    replicationIdentifier: "storage-container-pull-replication",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
+        const checkpoint = checkpointOrNull ?? null;
+
+        const response = await client.collections.sync.pull({
+          checkpoint,
+          batchSize,
+        });
+
+        return {
+          documents: response.documents,
+          // Convert null back to undefined for RxDB
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 50,
+      // Connect the SSE stream for live updates
+      stream$: pullStream$,
+    },
+    autoStart: true,
+    // No push handler - pull-only replication
+    push: undefined,
+    // Enable live streaming mode
+    live: true,
+    // Retry on error
+    retryTime: 5000,
+  });
+
+  // Log replication events for debugging
+  replicationState.error$.subscribe((error) => {
+    console.error("Storage container replication error:", error);
+  });
+
+  replicationState.active$.subscribe((active) => {
+    console.log("Storage container replication active:", active);
+  });
+
+  return replicationState;
+}
+
+/**
+ * Sets up live replication for the collection_cards collection with pullStream$.
+ * Syncs all collection cards owned by the user.
+ *
+ * The stream supports 'RESYNC' signals for efficient bulk import handling.
+ *
+ * @param db - The RxDB database instance
+ * @param client - The oRPC client instance
+ * @returns The replication state for monitoring/control
+ */
+export function setupCollectionCardReplication(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): RxReplicationState<CollectionCardDoc, ReplicationCheckpoint> {
+  // Create the pull stream that connects to the SSE endpoint
+  // This stream can emit documents or 'RESYNC' (for bulk imports)
+  const pullStream$ = createPullStreamWithResync<CollectionCardDoc, ReplicationCheckpoint>(() =>
+    client.collections.cardSync.stream({}),
+  );
+
+  const replicationState = replicateRxCollection<CollectionCardDoc, ReplicationCheckpoint>({
+    collection: db.collection_cards,
+    replicationIdentifier: "collection-card-pull-replication",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
+        const checkpoint = checkpointOrNull ?? null;
+
+        const response = await client.collections.cardSync.pull({
+          checkpoint,
+          batchSize,
+        });
+
+        return {
+          documents: response.documents,
+          // Convert null back to undefined for RxDB
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 100,
+      // Connect the SSE stream for live updates
+      stream$: pullStream$,
+    },
+    autoStart: true,
+    // No push handler - pull-only replication
+    push: undefined,
+    // Enable live streaming mode
+    live: true,
+    // Retry on error
+    retryTime: 5000,
+  });
+
+  // Log replication events for debugging
+  replicationState.error$.subscribe((error) => {
+    console.error("Collection card replication error:", error);
+  });
+
+  replicationState.active$.subscribe((active) => {
+    console.log("Collection card replication active:", active);
+  });
+
+  return replicationState;
+}
+
+/**
+ * Sets up live replication for the collection_card_locations collection with pullStream$.
+ * Syncs all card locations for the user's collection cards.
+ *
+ * The stream supports 'RESYNC' signals for efficient bulk import handling.
+ *
+ * @param db - The RxDB database instance
+ * @param client - The oRPC client instance
+ * @returns The replication state for monitoring/control
+ */
+export function setupCollectionCardLocationReplication(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): RxReplicationState<CollectionCardLocationDoc, ReplicationCheckpoint> {
+  // Create the pull stream that connects to the SSE endpoint
+  // This stream can emit documents or 'RESYNC' (for bulk imports)
+  const pullStream$ = createPullStreamWithResync<CollectionCardLocationDoc, ReplicationCheckpoint>(
+    () => client.collections.locationSync.stream({}),
+  );
+
+  const replicationState = replicateRxCollection<CollectionCardLocationDoc, ReplicationCheckpoint>({
+    collection: db.collection_card_locations,
+    replicationIdentifier: "collection-card-location-pull-replication",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
+        const checkpoint = checkpointOrNull ?? null;
+
+        const response = await client.collections.locationSync.pull({
+          checkpoint,
+          batchSize,
+        });
+
+        return {
+          documents: response.documents,
+          // Convert null back to undefined for RxDB
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 100,
+      // Connect the SSE stream for live updates
+      stream$: pullStream$,
+    },
+    autoStart: true,
+    // No push handler - pull-only replication
+    push: undefined,
+    // Enable live streaming mode
+    live: true,
+    // Retry on error
+    retryTime: 5000,
+  });
+
+  // Log replication events for debugging
+  replicationState.error$.subscribe((error) => {
+    console.error("Collection card location replication error:", error);
+  });
+
+  replicationState.active$.subscribe((active) => {
+    console.log("Collection card location replication active:", active);
+  });
+
+  return replicationState;
+}
+
+/**
  * Sets up pull-only replication for the scryfall_cards collection.
  * Only syncs cards that are referenced by the user's collection, decks, or lists.
  *
@@ -254,7 +451,7 @@ export function setupScryfallCardReplication(
         // Convert undefined to null for oRPC (RxDB uses undefined, oRPC uses null)
         const checkpoint = checkpointOrNull ?? null;
 
-        const response = await client.sync.scryfallCards.pull({
+        const response = await client.cards.sync.pull({
           checkpoint,
           batchSize,
         });
@@ -317,6 +514,57 @@ export async function syncDeckCards(db: ManaVaultDatabase, client: AppRouterClie
 }
 
 /**
+ * Triggers a one-time sync for storage containers (collections).
+ * Useful for manual refresh or initial load.
+ */
+export async function syncStorageContainers(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): Promise<void> {
+  const replicationState = setupStorageContainerReplication(db, client);
+
+  // Wait for the replication to complete
+  await replicationState.awaitInitialReplication();
+
+  // Cancel the replication since we're doing a one-time sync
+  await replicationState.cancel();
+}
+
+/**
+ * Triggers a one-time sync for collection cards.
+ * Useful for manual refresh or initial load.
+ */
+export async function syncCollectionCards(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): Promise<void> {
+  const replicationState = setupCollectionCardReplication(db, client);
+
+  // Wait for the replication to complete
+  await replicationState.awaitInitialReplication();
+
+  // Cancel the replication since we're doing a one-time sync
+  await replicationState.cancel();
+}
+
+/**
+ * Triggers a one-time sync for collection card locations.
+ * Useful for manual refresh or initial load.
+ */
+export async function syncCollectionCardLocations(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): Promise<void> {
+  const replicationState = setupCollectionCardLocationReplication(db, client);
+
+  // Wait for the replication to complete
+  await replicationState.awaitInitialReplication();
+
+  // Cancel the replication since we're doing a one-time sync
+  await replicationState.cancel();
+}
+
+/**
  * Triggers a one-time sync for scryfall cards.
  * Useful for manual refresh or initial load.
  */
@@ -337,6 +585,9 @@ export async function executeInitialSync(db: ManaVaultDatabase, client: AppRoute
   await Promise.allSettled([
     syncDecks(db, client),
     syncDeckCards(db, client),
+    syncStorageContainers(db, client),
+    syncCollectionCards(db, client),
+    syncCollectionCardLocations(db, client),
     syncScryfallCards(db, client),
   ]);
 }
