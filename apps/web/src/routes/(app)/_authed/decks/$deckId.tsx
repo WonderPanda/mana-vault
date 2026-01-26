@@ -1,4 +1,4 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, MoreHorizontal, Plus, Search, Swords, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
@@ -25,22 +25,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  CARD_CATEGORIES,
+  useDeck,
+  useDeckCardCount,
+  useDeckCards,
+  useDeckCardsByCategory,
+  useGroupedDeckCards,
+  type CardCategory,
+} from "@/hooks/use-deck-cards-by-category";
 import { orpc, queryClient } from "@/utils/orpc";
-import { useLiveQuery, eq, sum } from "@tanstack/react-db";
 
 export const Route = createFileRoute("/(app)/_authed/decks/$deckId")({
   component: DeckDetailPage,
-  beforeLoad: async ({ context: { queryClient }, params }) => {
-    await Promise.all([
-      queryClient.ensureQueryData(orpc.decks.get.queryOptions({ input: { id: params.deckId } })),
-      queryClient.ensureQueryData(
-        orpc.decks.getCards.queryOptions({ input: { deckId: params.deckId } }),
-      ),
-    ]);
-  },
-  loader: ({ context: { db } }) => {
-    return db;
-  },
 });
 
 function DeckDetailPage() {
@@ -51,48 +48,9 @@ function DeckDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
 
-  const { deckCollection, deckCardCollection, scryfallCardCollection } = Route.useLoaderData();
-
-  const { data: decks } = useLiveQuery((q) =>
-    q.from({ deck: deckCollection }).where(({ deck }) => eq(deck.id, deckId)),
-  );
-
-  const { data: deckCardCount } = useLiveQuery((q) =>
-    q
-      .from({ deckCard: deckCardCollection })
-      .groupBy(({ deckCard }) => deckCard.deckId)
-      .select(({ deckCard }) => ({
-        deckId: deckCard.deckId,
-        cardCount: sum(deckCard.quantity),
-      })),
-  );
-
-  const cardCount = deckCardCount?.find((dc) => dc.deckId === deckId)?.cardCount ?? 0;
-
-  const { data: cards } = useLiveQuery((q) =>
-    q
-      .from({ deckCard: deckCardCollection })
-      .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
-        eq(deckCard.preferredScryfallId, card.id),
-      )
-      .where(({ deckCard }) => eq(deckCard.deckId, deckId))
-      .select(({ deckCard, card }) => ({
-        ...deckCard,
-        scryfallCard: {
-          name: card.name,
-          setCode: card.setCode,
-          setName: card.setName,
-          collectorNumber: card.collectorNumber,
-          imageUri: card.imageUri,
-          manaCost: card.manaCost,
-          typeLine: card.typeLine,
-        },
-      })),
-  );
-
-  const deck = decks?.[0] ?? {};
-
-  // console.log("Live deck:", liveDeck);
+  const { data: deck } = useDeck(deckId);
+  const { data: cardCount } = useDeckCardCount(deckId);
+  const { data: allCards } = useDeckCards(deckId);
 
   const importMutation = useMutation({
     ...orpc.decks.importCards.mutationOptions(),
@@ -136,6 +94,10 @@ function DeckDetailPage() {
   const handleDelete = () => {
     deleteMutation.mutate({ id: deckId });
   };
+
+  if (!deck) {
+    return <DeckDetailSkeleton />;
+  }
 
   return (
     <PageLayout>
@@ -264,7 +226,7 @@ function DeckDetailPage() {
         )}
 
         {/* Cards section */}
-        {cards.length === 0 ? (
+        {allCards?.length === 0 ? (
           <EmptyCardsState
             title="No cards in this deck"
             description="Start building your deck by importing cards or searching for cards to add."
@@ -278,15 +240,47 @@ function DeckDetailPage() {
             <div className="mb-4 flex justify-end">
               <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
             </div>
-            <MtgCardGrid view={viewMode}>
-              {cards.map((card) => (
-                <MtgCardItem key={card.id} card={card} view={viewMode} />
+            <div className="space-y-6">
+              {CARD_CATEGORIES.map((category) => (
+                <DeckCardCategory
+                  key={category}
+                  deckId={deckId}
+                  category={category}
+                  view={viewMode}
+                />
               ))}
-            </MtgCardGrid>
+            </div>
           </>
         )}
       </PageContent>
     </PageLayout>
+  );
+}
+
+interface DeckCardCategoryProps {
+  deckId: string;
+  category: CardCategory;
+  view: MtgCardViewMode;
+}
+
+function DeckCardCategory({ deckId, category, view }: DeckCardCategoryProps) {
+  const { data: cards } = useDeckCardsByCategory(deckId, category);
+
+  if (!cards || cards.length === 0) return null;
+
+  const categoryCount = cards.reduce((total, card) => total + (card.quantity ?? 1), 0);
+
+  return (
+    <div>
+      <h3 className="mb-2 text-lg font-semibold text-muted-foreground">
+        {category} ({categoryCount})
+      </h3>
+      <MtgCardGrid view={view}>
+        {cards.map((card) => (
+          <MtgCardItem key={card.id} card={card} view={view} />
+        ))}
+      </MtgCardGrid>
+    </div>
   );
 }
 
