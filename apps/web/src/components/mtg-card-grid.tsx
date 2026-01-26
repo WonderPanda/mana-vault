@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Grid2X2, List } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
@@ -64,8 +64,8 @@ export function MtgCardViewToggle({ view, onViewChange, className }: MtgCardView
   );
 }
 
-// Estimated row heights for virtualization
-const GRID_ROW_HEIGHT = 320; // Card aspect ratio (680/488) * width + gap + content
+// Estimated row heights for virtualization (used as initial estimate before measurement)
+const GRID_ROW_HEIGHT = 380; // Card image + metadata content + gap
 const LIST_ROW_HEIGHT = 36; // Single list item height
 
 interface VirtualizedMtgCardGridProps {
@@ -103,8 +103,15 @@ export function VirtualizedMtgCardGrid({
     overscan: view === "grid" ? 2 : 5,
   });
 
+  // Reset virtualizer measurements when view mode or columns change
+  useEffect(() => {
+    virtualizer.measure();
+  }, [view, columns, virtualizer]);
+
   return (
-    <div className={className}>
+    // Key on view mode forces complete remount when switching views,
+    // ensuring measurements are reset properly
+    <div className={className} key={view}>
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -145,16 +152,17 @@ export function VirtualizedMtgCardGrid({
           return (
             <div
               key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
                 width: "100%",
-                height: `${virtualItem.size}px`,
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid grid-cols-3 gap-2 pb-2 sm:gap-4 sm:pb-4 lg:grid-cols-4 xl:grid-cols-5">
                 {rowCards.map((card) => (
                   <MtgCardItem
                     key={card.id}

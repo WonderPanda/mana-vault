@@ -13,7 +13,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
@@ -21,10 +21,9 @@ import type { CardImportData } from "@/components/card-import-dialog";
 import { DeleteListDialog } from "@/components/delete-list-dialog";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
-  MtgCardGrid,
   MtgCardGridSkeleton,
-  MtgCardItem,
   MtgCardViewToggle,
+  VirtualizedMtgCardGrid,
   type MtgCardViewMode,
 } from "@/components/mtg-card-grid";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
@@ -60,6 +59,7 @@ function ListDetailPage() {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const importMutation = useMutation({
     ...orpc.lists.importCards.mutationOptions(),
@@ -201,7 +201,7 @@ function ListDetailPage() {
         isDeleting={deleteMutation.isPending}
       />
 
-      <PageContent>
+      <PageContent ref={scrollContainerRef}>
         {/* List metadata */}
         <div className="mb-6 flex flex-wrap gap-4 text-sm text-muted-foreground">
           <div>
@@ -241,11 +241,26 @@ function ListDetailPage() {
             <div className="mb-4 flex justify-end">
               <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
             </div>
-            <MtgCardGrid view={viewMode}>
-              {cards.map((card) => (
-                <MtgCardItem key={card.id} card={card} view={viewMode} />
-              ))}
-            </MtgCardGrid>
+            <VirtualizedMtgCardGrid
+              view={viewMode}
+              scrollElementRef={scrollContainerRef}
+              cards={cards.map((card) => ({
+                id: card.id,
+                scryfallCard: {
+                  name: card.scryfallCard.name,
+                  setCode: card.scryfallCard.setCode,
+                  setName: card.scryfallCard.setName,
+                  collectorNumber: card.scryfallCard.collectorNumber,
+                  imageUri: card.scryfallCard.imageUri,
+                  manaCost: card.scryfallCard.manaCost,
+                },
+                condition: card.condition,
+                isFoil: card.isFoil,
+                language: card.language,
+                quantity: card.quantity,
+                isInCollection: card.isInCollection,
+              }))}
+            />
           </>
         )}
       </PageContent>
