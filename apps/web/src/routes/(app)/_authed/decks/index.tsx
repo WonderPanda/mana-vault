@@ -1,4 +1,4 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Swords } from "lucide-react";
 import { useState } from "react";

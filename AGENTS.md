@@ -51,7 +51,7 @@ bun run check            # Run oxlint + oxfmt (lint & format)
 
 ```bash
 bun run dev:web          # Start web app only (port 3001)
-bun run dev:server       # Start server only (port 3000)
+bun run dev:server       # Start server only (port 3002)
 bun run dev:native       # Start Expo/React Native dev server
 ```
 

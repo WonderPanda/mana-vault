@@ -101,7 +101,7 @@ export const server = await Worker("server", {
     },
   ],
   dev: {
-    port: 3000,
+    port: 3007,
   },
 });
 
