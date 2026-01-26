@@ -153,7 +153,7 @@ function ListDetailPage() {
                 }}
               >
                 <Upload className="mr-2 h-4 w-4" />
-                Import CSV
+                Import
               </Button>
             </PopoverContent>
           </Popover>
@@ -184,7 +184,6 @@ function ListDetailPage() {
         onImport={handleImport}
         isImporting={importMutation.isPending}
         title={`Import Cards to "${list.name}"`}
-        description="Import cards from a CSV file or paste CSV content directly."
       />
 
       <DeleteListDialog

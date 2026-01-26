@@ -26,19 +26,23 @@ import { cn } from "@/lib/utils";
  * Supported CSV format identifiers.
  * Add new formats here as they are implemented.
  */
-export type CsvFormat = "manabox";
+export type Format = "manabox" | "moxfield";
 
 interface CsvFormatOption {
-  value: CsvFormat;
+  value: Format;
   label: string;
-  description: string;
+  description?: string;
 }
 
 const CSV_FORMATS: CsvFormatOption[] = [
   {
     value: "manabox",
     label: "ManaBox",
-    description: "Export from ManaBox app",
+    // description: "Export from ManaBox app",
+  },
+  {
+    value: "moxfield",
+    label: "Moxfield",
   },
   // Future formats will be added here:
   // { value: "deckbox", label: "Deckbox", description: "Export from Deckbox.org" },
@@ -49,7 +53,7 @@ export interface CardImportData {
   /** The raw CSV content */
   csvContent: string;
   /** The selected format for parsing */
-  format: CsvFormat;
+  format: Format;
 }
 
 interface CardImportDialogProps {
@@ -73,17 +77,17 @@ export function CardImportDialog({
   onImport,
   isImporting = false,
   title = "Import Cards",
-  description = "Import cards from a CSV file or paste CSV content directly.",
+  description = "Import cards from a file or paste text content directly.",
 }: CardImportDialogProps) {
   const [inputMethod, setInputMethod] = useState<"paste" | "file">("paste");
   const [csvContent, setCsvContent] = useState("");
-  const [format, setFormat] = useState<CsvFormat>("manabox");
+  const [format, setFormat] = useState<Format>("manabox");
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (file: File) => {
-    if (!file.name.endsWith(".csv")) {
+    if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
       // Could add toast error here in the future
       return;
     }
@@ -161,8 +165,8 @@ export function CardImportDialog({
           <div className="grid gap-4 py-4">
             {/* Format Selection */}
             <div className="grid gap-2">
-              <Label htmlFor="format">CSV Format</Label>
-              <Select value={format} onValueChange={(v) => setFormat(v as CsvFormat)}>
+              <Label htmlFor="format">Import Format</Label>
+              <Select value={format} onValueChange={(v) => setFormat(v as Format)}>
                 <SelectTrigger id="format">
                   <SelectValue placeholder="Select format" />
                 </SelectTrigger>
@@ -170,7 +174,6 @@ export function CardImportDialog({
                   {CSV_FORMATS.map((f) => (
                     <SelectItem key={f.value} value={f.value}>
                       <span className="font-medium">{f.label}</span>
-                      <span className="ml-2 text-muted-foreground">- {f.description}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -181,7 +184,7 @@ export function CardImportDialog({
             <Tabs value={inputMethod} onValueChange={(v) => setInputMethod(v as "paste" | "file")}>
               <TabsList className="w-full">
                 <TabsTrigger value="paste" className="flex-1">
-                  Paste CSV
+                  Paste
                 </TabsTrigger>
                 <TabsTrigger value="file" className="flex-1">
                   Upload File
@@ -190,10 +193,10 @@ export function CardImportDialog({
 
               <TabsContent value="paste" className="mt-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="csv-content">CSV Content</Label>
+                  <Label htmlFor="csv-content">Content</Label>
                   <Textarea
                     id="csv-content"
-                    placeholder="Paste your CSV content here..."
+                    placeholder="Paste your content here..."
                     value={csvContent}
                     onChange={(e) => setCsvContent(e.target.value)}
                     className="min-h-[200px] font-mono text-xs"
@@ -203,7 +206,7 @@ export function CardImportDialog({
 
               <TabsContent value="file" className="mt-4">
                 <div className="grid gap-2">
-                  <Label>CSV File</Label>
+                  <Label>File</Label>
                   <div
                     className={cn(
                       "flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed p-6 transition-colors",
@@ -236,7 +239,7 @@ export function CardImportDialog({
                     ) : (
                       <>
                         <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
-                        <p className="font-medium">Drop your CSV file here</p>
+                        <p className="font-medium">Drop your file here</p>
                         <p className="mt-1 text-xs text-muted-foreground">or click to browse</p>
                       </>
                     )}

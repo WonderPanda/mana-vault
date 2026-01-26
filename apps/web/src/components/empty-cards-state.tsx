@@ -34,7 +34,7 @@ export function EmptyCardsState({
   onAddClick,
   showImportButton = true,
   showAddButton = true,
-  importLabel = "Import CSV",
+  importLabel = "Import",
   addLabel = "Add Cards",
   variant = "list",
 }: EmptyCardsStateProps) {
@@ -45,8 +45,8 @@ export function EmptyCardsState({
   // Default description based on variant
   const defaultDescription =
     variant === "collection"
-      ? "This collection is empty. Import cards from a CSV file or add them from search to get started."
-      : "This list is empty. Add cards from your collection or import them from a CSV file.";
+      ? "This collection is empty. Import cards from a file or add them from search to get started."
+      : "This list is empty. Add cards from your collection or import them from file.";
 
   const displayDescription = description || defaultDescription;
 

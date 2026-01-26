@@ -1,0 +1,101 @@
+1 Toph, Hardheaded Teacher (TLA) 246
+1 Asceticism (PLST) SOM-110
+1 Avenger of Zendikar (TDC) 247
+1 Ba Sing Se (TLA) 266 *F*
+1 Basilisk Collar (PIP) 225
+1 Beast Within (EOC) 93
+1 Birds of Paradise (M11) 165
+1 Blast Zone (M3C) 322
+1 Blighted Woodland (NCC) 388
+1 Branching Evolution (LCC) 234
+1 Brass's Tunnel-Grinder / Tecutlan, the Searing Rift (LCI) 135
+1 Cankerbloom (ONE) 294
+1 Cleansing Wildfire (ZNR) 137
+1 Collective Resistance (MH3) 147
+1 Copperline Gorge (BLC) 301
+1 Cryptic Caves (M20) 244
+1 Cycle of Renewal (TLA) 170
+1 Demolition Field (FIC) 385
+1 Disciple of Freyalise / Garden of Freyalise (MH3) 250
+1 Duskshell Crawler (J25) 653
+1 Earthbender Ascension (TLA) 175
+1 Embodiment of Insight (OGW) 131
+1 Entish Restoration (LTR) 163
+1 Evolution Sage (PLST) WAR-159
+1 Evolutionary Leap (ORI) 176
+1 Farseek (RVR) 347
+12 Forest (SPM) 198
+1 Gemstone Mine (PLST) WTH-164
+1 Gladiolus Amicitia (FIN) 224
+1 Gruul War Plow (GPT) 151
+1 Hardened Scales (FIC) 307
+1 Harrow (EOC) 98
+1 Hidden Nursery (LCI) 276
+1 Hidden Volcano (LCI) 277
+1 Karn's Bastion (EOC) 163
+1 Kazandu Mammoth / Kazandu Valley (ZNR) 305
+1 Kazuul's Fury / Kazuul's Cliffs (ZNR) 146
+1 Khalni Ambush / Khalni Territory (ZNR) 192
+1 Leyline of Vitality (M11) 183
+1 Lignify (LTC) 252
+1 Long-Range Sensor (EOC) 11
+1 Meltstrider Eulogist (EOE) 197
+1 Moraug, Fury of Akoum (EOC) 89
+8 Mountain (M21) 269
+1 Mountain Valley (EOC) 61
+1 Nature's Revolt (TMP) 240
+1 Naya Panorama (ALA) 227
+1 Omnath, Locus of Rage (EOC) 123
+1 Origin of Metalbending (TLA) 187
+1 Primal Growth (PLST) PLS-87
+1 Promising Vein (LCI) 279
+1 Quest for Renewal (WWK) 110
+1 Quicksand (WWK) 140
+1 Raging Ravine (M3C) 367
+1 Rampaging Baloths (EOC) 104
+1 Rampant Growth (PIP) 204
+1 Regrowth (MH1) 175
+1 Revive (M13) 187
+1 Rootbound Crag (ECC) 163
+1 Sabotender (FIN) 153
+1 Sakura-Tribe Elder (DSC) 194
+1 Samut, Vizier of Naktamun (MAT) 45
+1 Scavenger Grounds (MKC) 287
+1 Shared Roots (TLA) 196
+1 Smell Fear (MH2) 173
+1 Solid Ground (TLE) 142
+1 Spikefield Hazard / Spikefield Cave (ZNR) 166
+1 Stocking the Pantry (BLB) 194
+1 Stump Stomp / Burnwillow Clearing (MH3) 259
+1 Sylvan Library (4ED) 273
+1 Tannuk, Memorial Ensign (EOE) 233
+1 The Rack (DPA) 95
+1 Thermopod (PLST) CSP-100
+1 Thirsting Roots (ONE) 185
+1 Tireless Provisioner (J25) 728
+1 Tunneling Geopede (BFZ) 158
+1 Ulvenwald Hydra (M3C) 250
+1 Valakut Exploration (ZNR) 303
+1 Vastwood Fortification / Vastwood Thicket (ZNR) 216
+1 Volt Charge (ONE) 155
+1 Wilderness Reclamation (DSC) 205
+1 Worldly Tutor (MIR) 255
+
+SIDEBOARD:
+1 Aggressive Mining (M15) 127
+1 Amulet of Vigor (PLST) WWK-121 *F*
+1 Bridgeworks Battle / Tanglespan Bridgeworks (MH3) 249
+1 Contest of Claws (LCC) 12 *F*
+1 Custody Battle (ONS) 197
+1 Ghost Quarter (PLST) CM2-253
+1 Jund Panorama (C18) 258
+1 Nature's Lore (CLB) 244
+1 Oran-Rief, the Vastwood (BLC) 320
+1 Perilous Forays (RVR) 457 *F*
+1 Pinnacle Monk / Mystic Peak (MH3) 246
+1 Red XIII, Proud Warrior (FIC) 91
+1 Sphere Grid (FIC) 70
+1 Stone-Seeder Hierophant (RAV) 184
+1 Terrasymbiosis (PEOE) 210p
+1 Territorial Dispute (MMQ) 217
+1 Vitalize (6ED) 265

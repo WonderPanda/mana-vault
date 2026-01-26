@@ -1,15 +1,6 @@
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  BookOpen,
-  Box,
-  MoreHorizontal,
-  Plus,
-  Search,
-  Trash2,
-  Upload,
-} from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Plus, Search, Swords, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -30,45 +21,37 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc, queryClient } from "@/utils/orpc";
 
-export const Route = createFileRoute("/(app)/_authed/cards/$collectionId")({
-  component: CollectionDetailPage,
+export const Route = createFileRoute("/(app)/_authed/decks/$deckId")({
+  component: DeckDetailPage,
   beforeLoad: async ({ context: { queryClient }, params }) => {
     await Promise.all([
+      queryClient.ensureQueryData(orpc.decks.get.queryOptions({ input: { id: params.deckId } })),
       queryClient.ensureQueryData(
-        orpc.collections.get.queryOptions({ input: { id: params.collectionId } }),
-      ),
-      queryClient.ensureQueryData(
-        orpc.collections.getCards.queryOptions({
-          input: { collectionId: params.collectionId },
-        }),
+        orpc.decks.getCards.queryOptions({ input: { deckId: params.deckId } }),
       ),
     ]);
   },
 });
 
-function CollectionDetailPage() {
-  const { collectionId } = Route.useParams();
+function DeckDetailPage() {
+  const { deckId } = Route.useParams();
   const navigate = useNavigate();
-  const { data: collection } = useSuspenseQuery(
-    orpc.collections.get.queryOptions({ input: { id: collectionId } }),
-  );
-  const { data: cards } = useSuspenseQuery(
-    orpc.collections.getCards.queryOptions({ input: { collectionId } }),
-  );
+  const { data: deck } = useSuspenseQuery(orpc.decks.get.queryOptions({ input: { id: deckId } }));
+  const { data: cards } = useSuspenseQuery(orpc.decks.getCards.queryOptions({ input: { deckId } }));
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const importMutation = useMutation({
-    ...orpc.collections.importCards.mutationOptions(),
+    ...orpc.decks.importCards.mutationOptions(),
     onSuccess: (data) => {
       toast.success(data.message);
       setIsImportOpen(false);
       queryClient.invalidateQueries({
-        queryKey: orpc.collections.get.queryOptions({ input: { id: collectionId } }).queryKey,
+        queryKey: orpc.decks.get.queryOptions({ input: { id: deckId } }).queryKey,
       });
       queryClient.invalidateQueries({
-        queryKey: orpc.collections.getCards.queryOptions({ input: { collectionId } }).queryKey,
+        queryKey: orpc.decks.getCards.queryOptions({ input: { deckId } }).queryKey,
       });
     },
     onError: (error) => {
@@ -77,51 +60,52 @@ function CollectionDetailPage() {
   });
 
   const deleteMutation = useMutation({
-    ...orpc.collections.delete.mutationOptions(),
+    ...orpc.decks.delete.mutationOptions(),
     onSuccess: (data) => {
-      toast.success(`Deleted "${data.deletedCollectionName}"`);
+      toast.success(`Deleted "${data.deletedDeckName}"`);
       queryClient.invalidateQueries({
-        queryKey: orpc.collections.list.queryOptions().queryKey,
+        queryKey: orpc.decks.list.queryOptions().queryKey,
       });
-      navigate({ to: "/cards" });
+      navigate({ to: "/decks" });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to delete collection");
+      toast.error(error.message || "Failed to delete deck");
     },
   });
 
   const handleImport = (data: CardImportData) => {
     importMutation.mutate({
-      collectionId,
+      deckId,
       csvContent: data.csvContent,
       format: data.format,
     });
   };
 
   const handleDelete = () => {
-    deleteMutation.mutate({ id: collectionId });
+    deleteMutation.mutate({ id: deckId });
   };
-
-  const TypeIcon = collection.type === "binder" ? BookOpen : Box;
 
   return (
     <PageLayout>
       <PageHeader>
         <div className="flex items-center gap-3">
-          <Link to="/cards">
+          <Link to="/decks">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20">
-              <TypeIcon className="h-5 w-5 text-primary" />
+              <Swords className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <PageTitle>{collection.name}</PageTitle>
-              {collection.description && (
-                <p className="text-sm text-muted-foreground">{collection.description}</p>
-              )}
+              <PageTitle>{deck.name}</PageTitle>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium uppercase">
+                  {deck.format}
+                </span>
+                <span className="text-sm text-muted-foreground">{getStatusLabel(deck.status)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -185,23 +169,53 @@ function CollectionDetailPage() {
         onOpenChange={setIsImportOpen}
         onImport={handleImport}
         isImporting={importMutation.isPending}
-        title={`Import Cards to "${collection.name}"`}
+        title={`Import Cards to "${deck.name}"`}
       />
 
       <DeleteConfirmationDialog
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
-        itemName={collection.name}
-        itemType="Collection"
+        itemName={deck.name}
+        itemType="Deck"
         onConfirm={handleDelete}
         isDeleting={deleteMutation.isPending}
-        warningMessage="This will permanently delete the collection. Cards in this collection will become unassigned but will NOT be deleted from your collection."
+        warningMessage="This will permanently delete the deck and all cards in it. Your collection cards will not be affected."
       />
 
       <PageContent>
+        {/* Deck metadata */}
+        <div className="mb-6 flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <div>
+            <span className="font-medium">Format:</span> {getFormatLabel(deck.format)}
+          </div>
+          <div>
+            <span className="font-medium">Status:</span> {getStatusLabel(deck.status)}
+          </div>
+          {deck.archetype && (
+            <div>
+              <span className="font-medium">Archetype:</span> {getArchetypeLabel(deck.archetype)}
+            </div>
+          )}
+          <div>
+            <span className="font-medium">Cards:</span> {deck.cardCount}
+          </div>
+          <div>
+            <span className="font-medium">Created:</span>{" "}
+            {new Date(deck.createdAt).toLocaleDateString()}
+          </div>
+        </div>
+
+        {deck.description && (
+          <div className="mb-6 rounded-lg bg-muted/50 p-4">
+            <p className="text-sm whitespace-pre-wrap">{deck.description}</p>
+          </div>
+        )}
+
+        {/* Cards section */}
         {cards.length === 0 ? (
           <EmptyCardsState
-            variant="collection"
+            title="No cards in this deck"
+            description="Start building your deck by importing cards or searching for cards to add."
             onImportClick={() => setIsImportOpen(true)}
             onAddClick={() => {
               // TODO: Open search dialog
@@ -209,28 +223,9 @@ function CollectionDetailPage() {
           />
         ) : (
           <MtgCardGrid>
-            {cards.map((card) => {
-              if (!card.card) return null;
-              return (
-                <MtgCardItem
-                  key={card.id}
-                  card={{
-                    id: card.id,
-                    scryfallCard: {
-                      name: card.card.name,
-                      setCode: card.card.setCode,
-                      setName: card.card.setName,
-                      collectorNumber: card.card.collectorNumber,
-                      imageUri: card.card.imageUri,
-                    },
-                    condition: card.condition,
-                    isFoil: card.isFoil,
-                    language: card.language,
-                    isInCollection: true,
-                  }}
-                />
-              );
-            })}
+            {cards.map((card) => (
+              <MtgCardItem key={card.id} card={card} />
+            ))}
           </MtgCardGrid>
         )}
       </PageContent>
@@ -238,7 +233,62 @@ function CollectionDetailPage() {
   );
 }
 
-export function CollectionDetailSkeleton() {
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case "active":
+      return "Active";
+    case "retired":
+      return "Retired";
+    case "in_progress":
+      return "In Progress";
+    case "theorycraft":
+      return "Theorycraft";
+    default:
+      return status;
+  }
+}
+
+function getFormatLabel(format: string): string {
+  switch (format) {
+    case "commander":
+      return "Commander";
+    case "standard":
+      return "Standard";
+    case "modern":
+      return "Modern";
+    case "legacy":
+      return "Legacy";
+    case "pioneer":
+      return "Pioneer";
+    case "pauper":
+      return "Pauper";
+    case "other":
+      return "Other";
+    default:
+      return format;
+  }
+}
+
+function getArchetypeLabel(archetype: string): string {
+  switch (archetype) {
+    case "aggro":
+      return "Aggro";
+    case "control":
+      return "Control";
+    case "combo":
+      return "Combo";
+    case "midrange":
+      return "Midrange";
+    case "tempo":
+      return "Tempo";
+    case "other":
+      return "Other";
+    default:
+      return archetype;
+  }
+}
+
+export function DeckDetailSkeleton() {
   return (
     <PageLayout>
       <PageHeader>
@@ -246,11 +296,19 @@ export function CollectionDetailSkeleton() {
           <Skeleton className="h-10 w-10 rounded" />
           <div className="space-y-2">
             <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-4 w-48" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-16 rounded" />
+              <Skeleton className="h-4 w-20" />
+            </div>
           </div>
         </div>
       </PageHeader>
       <PageContent>
+        <div className="mb-6 flex gap-4">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-24" />
+        </div>
         <MtgCardGridSkeleton count={10} />
       </PageContent>
     </PageLayout>

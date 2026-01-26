@@ -20,7 +20,9 @@ export const Route = createFileRoute("/(app)/_authed")({
     const session = await queryClient.fetchQuery({
       queryKey: ["session"],
       queryFn: () => authClient.getSession(),
-      staleTime: (query) => {
+      staleTime: (query: {
+        state: { data?: Awaited<ReturnType<typeof authClient.getSession>> };
+      }) => {
         const data = query.state.data;
         if (!data?.data?.session?.expiresAt) return 0;
         // Cache until 10 seconds before session expires
