@@ -1,6 +1,15 @@
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Gift, ListChecks, Plus, Search, ShoppingCart, Sparkles, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  Gift,
+  ListChecks,
+  Plus,
+  Search,
+  ShoppingCart,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -28,9 +37,7 @@ export const Route = createFileRoute("/(app)/_authed/lists/$listId")({
 function ListDetailPage() {
   const { listId } = Route.useParams();
   const { data: list } = useSuspenseQuery(orpc.lists.get.queryOptions({ input: { id: listId } }));
-  const { data: cards } = useSuspenseQuery(
-    orpc.lists.getCards.queryOptions({ input: { listId } }),
-  );
+  const { data: cards } = useSuspenseQuery(orpc.lists.getCards.queryOptions({ input: { listId } }));
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
@@ -215,10 +222,11 @@ function ListCardItem({ card }: { card: ListCard }) {
           <span className="text-muted-foreground">No image</span>
         </div>
       )}
-      <CardContent className="p-3">
+      <CardContent className="px-3 py-1">
         <h4 className="truncate font-medium">{scryfallCard.name}</h4>
         <p className="truncate text-xs text-muted-foreground">
-          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #{scryfallCard.collectorNumber}
+          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #
+          {scryfallCard.collectorNumber}
         </p>
         <div className="mt-1 flex flex-wrap gap-1">
           {collectionCard.isFoil && (

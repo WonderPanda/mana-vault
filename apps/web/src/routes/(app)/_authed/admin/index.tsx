@@ -89,13 +89,10 @@ function ScryfallBulkImport() {
   );
 
   const importMutation = useMutation({
-    ...orpc.admin.streamImportScryfall.mutationOptions(),
+    ...orpc.admin.queueScryfallImport.mutationOptions(),
     onSuccess: (result) => {
       toast.success(result.message);
-      // Invalidate stats to show updated counts
-      queryClient.invalidateQueries({
-        queryKey: orpc.admin.getScryfallStats.queryOptions().queryKey,
-      });
+      // Note: Stats won't update immediately since import runs in background
     },
     onError: (error) => {
       toast.error(`Import failed: ${error.message}`);
@@ -119,8 +116,8 @@ function ScryfallBulkImport() {
           Import Scryfall Bulk Data
         </CardTitle>
         <CardDescription>
-          Stream and import card data directly from Scryfall&apos;s servers. The data is streamed
-          and processed in batches to handle large files efficiently.
+          Import card data from Scryfall&apos;s bulk data files. The import runs in the background
+          as a queued job, so you can close this page while it processes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -191,20 +188,21 @@ function ScryfallBulkImport() {
           {importMutation.isPending ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Importing... This may take several minutes
+              Queueing import job...
             </>
           ) : (
             <>
               <Download className="mr-2 h-4 w-4" />
-              Start Import
+              Queue Import Job
             </>
           )}
         </Button>
 
-        {importMutation.isPending && (
-          <p className="text-center text-sm text-muted-foreground">
-            Streaming and processing cards from Scryfall. The page will update when complete.
-          </p>
+        {importMutation.isSuccess && (
+          <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 text-sm text-green-700 dark:text-green-400">
+            Import job queued successfully! The import is running in the background. Refresh the
+            stats above to see progress.
+          </div>
         )}
       </CardContent>
     </Card>

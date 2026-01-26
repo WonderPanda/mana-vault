@@ -1,12 +1,10 @@
-import { JSONParser } from "@streamparser/json-whatwg";
+import { ORPCError } from "@orpc/server";
 import { db } from "@mana-vault/db";
 import { scryfallCard } from "@mana-vault/db/schema/app";
 import { sql } from "drizzle-orm";
 import z from "zod";
 
 import { adminProcedure, protectedProcedure } from "../index";
-import type { ScryfallCardResponse } from "../lib/scryfall";
-import { getCardImageUri } from "../lib/scryfall";
 
 const ADMIN_EMAIL = "jesse@thecarters.cloud";
 
@@ -27,15 +25,6 @@ const BULK_DATA_TYPES = {
 } as const;
 
 type BulkDataType = keyof typeof BULK_DATA_TYPES;
-
-/**
- * Scryfall bulk data card format (same as API response)
- */
-interface ScryfallBulkCard extends ScryfallCardResponse {
-  lang?: string;
-  released_at?: string;
-  layout?: string;
-}
 
 /**
  * Scryfall bulk data API response
@@ -110,11 +99,10 @@ export const adminRouter = {
   }),
 
   /**
-   * Stream and import Scryfall bulk data directly from their servers.
-   * This streams the JSON data and processes cards in batches to handle
-   * multi-gigabyte files without running out of memory.
+   * Queue a Scryfall bulk data import job.
+   * The import runs in a background queue worker with extended timeout limits.
    */
-  streamImportScryfall: adminProcedure
+  queueScryfallImport: adminProcedure
     .input(
       z.object({
         /** Which bulk data type to import */
@@ -123,7 +111,15 @@ export const adminRouter = {
         englishOnly: z.boolean().default(true),
       }),
     )
-    .handler(async ({ input }) => {
+    .handler(async ({ context, input }) => {
+      const queue = context.scryfallImportQueue;
+
+      if (!queue) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "Import queue not available. This feature requires Cloudflare Workers.",
+        });
+      }
+
       // First, get the download URL from Scryfall's bulk data API
       const manifestResponse = await fetch("https://api.scryfall.com/bulk-data", {
         headers: SCRYFALL_HEADERS,
@@ -139,105 +135,21 @@ export const adminRouter = {
         throw new Error(`Bulk data type '${input.bulkDataType}' not found`);
       }
 
-      // Fetch the bulk data file (Scryfall serves it gzipped, fetch auto-decompresses)
-      // Note: The data files at *.scryfall.io don't require the same headers as the API
-      const dataResponse = await fetch(bulkData.download_uri, {
-        headers: SCRYFALL_HEADERS,
+      // Send the import job to the queue
+      await queue.send({
+        type: "scryfall-import",
+        bulkDataType: input.bulkDataType,
+        englishOnly: input.englishOnly,
+        downloadUri: bulkData.download_uri,
       });
-      if (!dataResponse.ok) {
-        throw new Error(`Failed to fetch bulk data: ${dataResponse.status}`);
-      }
 
-      if (!dataResponse.body) {
-        throw new Error("No response body from bulk data download");
-      }
-
-      // Set up streaming JSON parser - parse each item in the root array
-      const parser = new JSONParser({ paths: ["$.*"] });
-
-      // Process cards in batches
-      // D1/SQLite has a limit on SQL variables per query
-      // The upsert with onConflictDoUpdate doubles the variables (insert + update set)
-      // With 16 columns per card × 2 = 32 variables per card
-      // Using batch size of 10 to stay well under limits
-      const BATCH_SIZE = 10;
-      let batch: ScryfallBulkCard[] = [];
-      let totalProcessed = 0;
-      let totalInserted = 0;
-      let totalSkipped = 0;
-      let batchNumber = 0;
-      const startTime = Date.now();
-
-      console.log(`[Scryfall Import] Starting import of ${input.bulkDataType}...`);
-
-      const reader = dataResponse.body.pipeThrough(parser).getReader();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const card = value.value as unknown as ScryfallBulkCard;
-
-        // Filter based on options
-        if (input.englishOnly && card.lang !== "en") {
-          totalSkipped++;
-          continue;
-        }
-
-        // Skip cards without required fields
-        if (!card.id || !card.oracle_id || !card.name || !card.set || !card.set_name) {
-          totalSkipped++;
-          continue;
-        }
-
-        batch.push(card);
-
-        // Process batch when it reaches the threshold
-        if (batch.length >= BATCH_SIZE) {
-          batchNumber++;
-          const batchStart = Date.now();
-          const inserted = await processBatch(batch);
-          const batchMs = Date.now() - batchStart;
-          totalInserted += inserted;
-          totalProcessed += batch.length;
-          // Log every 1000 cards (every 50 batches at size 20) to avoid spam
-          if (batchNumber % 50 === 0) {
-            const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
-            console.log(
-              `[Scryfall Import] Batch ${batchNumber}: Processed ${totalProcessed.toLocaleString()} cards (${totalInserted.toLocaleString()} inserted, ${totalSkipped.toLocaleString()} skipped) [batch: ${batchMs}ms, elapsed: ${elapsedSec}s]`,
-            );
-          }
-          batch = [];
-        }
-      }
-
-      // Process remaining cards in the final batch
-      if (batch.length > 0) {
-        batchNumber++;
-        const batchStart = Date.now();
-        const inserted = await processBatch(batch);
-        const batchMs = Date.now() - batchStart;
-        totalInserted += inserted;
-        totalProcessed += batch.length;
-        const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(
-          `[Scryfall Import] Batch ${batchNumber} (final): Processed ${totalProcessed.toLocaleString()} cards (${totalInserted.toLocaleString()} inserted, ${totalSkipped.toLocaleString()} skipped) [batch: ${batchMs}ms, elapsed: ${elapsedSec}s]`,
-        );
-      }
-
-      const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-      const cardsPerSecond = (totalProcessed / ((Date.now() - startTime) / 1000)).toFixed(0);
-
-      console.log(
-        `[Scryfall Import] Complete! Total: ${totalProcessed.toLocaleString()} processed, ${totalInserted.toLocaleString()} inserted, ${totalSkipped.toLocaleString()} skipped in ${elapsedSeconds}s (${cardsPerSecond} cards/sec)`,
-      );
+      console.log(`[Admin] Queued Scryfall import job: ${input.bulkDataType}`);
 
       return {
+        queued: true,
         bulkDataType: input.bulkDataType,
-        totalProcessed,
-        totalInserted,
-        totalSkipped,
-        message: `Successfully imported ${totalInserted} cards from ${bulkData.name}`,
+        bulkDataName: bulkData.name,
+        message: `Import job queued for ${bulkData.name}. This will run in the background.`,
       };
     }),
 
@@ -262,57 +174,6 @@ export const adminRouter = {
     }
   }),
 };
-
-/**
- * Process a batch of cards and insert/update them in the database
- */
-async function processBatch(cards: ScryfallBulkCard[]): Promise<number> {
-  const values = cards.map((card) => ({
-    id: card.id,
-    oracleId: card.oracle_id,
-    name: card.name,
-    setCode: card.set,
-    setName: card.set_name,
-    collectorNumber: card.collector_number || "0",
-    rarity: card.rarity || "common",
-    manaCost: card.mana_cost ?? null,
-    cmc: card.cmc ?? null,
-    typeLine: card.type_line ?? null,
-    oracleText: card.oracle_text ?? null,
-    colors: card.colors ? JSON.stringify(card.colors) : null,
-    colorIdentity: card.color_identity ? JSON.stringify(card.color_identity) : null,
-    imageUri: getCardImageUri(card),
-    scryfallUri: card.scryfall_uri ?? null,
-    dataJson: JSON.stringify(card),
-  }));
-
-  await db
-    .insert(scryfallCard)
-    .values(values)
-    .onConflictDoUpdate({
-      target: scryfallCard.id,
-      set: {
-        oracleId: sql`excluded.oracle_id`,
-        name: sql`excluded.name`,
-        setCode: sql`excluded.set_code`,
-        setName: sql`excluded.set_name`,
-        collectorNumber: sql`excluded.collector_number`,
-        rarity: sql`excluded.rarity`,
-        manaCost: sql`excluded.mana_cost`,
-        cmc: sql`excluded.cmc`,
-        typeLine: sql`excluded.type_line`,
-        oracleText: sql`excluded.oracle_text`,
-        colors: sql`excluded.colors`,
-        colorIdentity: sql`excluded.color_identity`,
-        imageUri: sql`excluded.image_uri`,
-        scryfallUri: sql`excluded.scryfall_uri`,
-        dataJson: sql`excluded.data_json`,
-        updatedAt: sql`(cast(unixepoch('subsecond') * 1000 as integer))`,
-      },
-    });
-
-  return values.length;
-}
 
 /**
  * Format bytes to human readable string

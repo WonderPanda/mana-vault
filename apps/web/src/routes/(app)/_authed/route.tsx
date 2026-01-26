@@ -46,7 +46,7 @@ export const Route = createFileRoute("/(app)/_authed")({
 
 const navItems = linkOptions([
   { to: "/cards", label: "Collection", icon: ChartColumnBig },
-  { to: "/search", label: "Search", icon: Search },
+  // { to: "/search", label: "Search", icon: Search },
   { to: "/decks", label: "Decks", icon: Layers },
   { to: "/lists", label: "Lists", icon: ListChecks },
 ]);

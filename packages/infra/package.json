@@ -2,6 +2,12 @@
   "name": "@mana-vault/infra",
   "private": true,
   "type": "module",
+  "exports": {
+    "./alchemy.run": {
+      "types": "./alchemy.run.ts",
+      "default": "./alchemy.run.ts"
+    }
+  },
   "scripts": {
     "dev": "alchemy dev",
     "deploy": "alchemy deploy",
