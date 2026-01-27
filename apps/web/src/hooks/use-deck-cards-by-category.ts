@@ -124,6 +124,31 @@ export function useDeckCards(deckId: string) {
 }
 
 /**
+ * Hook that returns commander cards for a deck.
+ * Commander decks can have 1-2 commanders (for Partner commanders).
+ */
+export function useDeckCommanders(deckId: string) {
+  const { deckCardCollection, scryfallCardCollection } = useDbCollections();
+
+  return useLiveQuery(
+    (q) =>
+      q
+        .from({ deckCard: deckCardCollection })
+        .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+          eq(deckCard.preferredScryfallId, card.id),
+        )
+        .where(({ deckCard }) => eq(deckCard.deckId, deckId))
+        .fn.where((row) => row.deckCard.isCommander === true)
+        .orderBy(({ card }) => card.name, "asc")
+        .select(({ deckCard, card }) => ({
+          ...deckCard,
+          scryfallCard: card,
+        })),
+    [deckId],
+  );
+}
+
+/**
  * Hook that returns deck cards grouped by all categories.
  * Returns an object keyed by CardCategory with arrays of matching cards.
  */

@@ -186,6 +186,9 @@ export const decksRouter = {
   /**
    * Import cards to a deck from CSV content.
    * Cards are imported as deck_card entries with oracle_id references.
+   *
+   * For commander format decks: if the deck is empty (no existing cards),
+   * the first card in the import will be automatically set as the commander.
    */
   importCards: protectedProcedure
     .input(
@@ -203,12 +206,25 @@ export const decksRouter = {
 
       // Verify the deck exists and belongs to the user
       const [existingDeck] = await db
-        .select({ id: deck.id })
+        .select({ id: deck.id, format: deck.format })
         .from(deck)
         .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId)));
 
       if (!existingDeck) {
         throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
+      }
+
+      // Check if this is a commander deck and if it's empty (for auto-commander assignment)
+      const isCommanderDeck = existingDeck.format === "commander";
+      let shouldAutoAssignCommander = false;
+
+      if (isCommanderDeck) {
+        const [existingCards] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(deckCard)
+          .where(eq(deckCard.deckId, input.deckId));
+
+        shouldAutoAssignCommander = (existingCards?.count ?? 0) === 0;
       }
 
       let importedCount = 0;
@@ -232,6 +248,9 @@ export const decksRouter = {
 
         totalQuantity = parseResult.rows.reduce((sum, row) => sum + row.quantity, 0);
 
+        // Track if we've assigned the commander (first card in empty commander deck)
+        let commanderAssigned = false;
+
         // Import cards - we need to look up the oracle_id from the scryfall card
         for (const row of parseResult.rows) {
           try {
@@ -250,13 +269,19 @@ export const decksRouter = {
               continue;
             }
 
+            // For commander decks importing to an empty deck, first card becomes commander
+            const isCommander = shouldAutoAssignCommander && !commanderAssigned;
+            if (isCommander) {
+              commanderAssigned = true;
+            }
+
             await db.insert(deckCard).values({
               deckId: input.deckId,
               oracleId: card.oracleId,
               preferredScryfallId: row.scryfallId,
               quantity: row.quantity,
               board: "main",
-              isCommander: false,
+              isCommander,
               isCompanion: false,
               isProxy: false,
             });
@@ -287,6 +312,9 @@ export const decksRouter = {
 
         totalQuantity = parseResult.stats.totalQuantity;
 
+        // Track if we've assigned the commander (first card in empty commander deck)
+        let commanderAssigned = false;
+
         // For Moxfield, we need to look up cards by set code + collector number
         for (const row of parseResult.rows) {
           const foundCard = await lookupScryfallCard(row);
@@ -300,13 +328,19 @@ export const decksRouter = {
           }
 
           try {
+            // For commander decks importing to an empty deck, first card becomes commander
+            const isCommander = shouldAutoAssignCommander && !commanderAssigned;
+            if (isCommander) {
+              commanderAssigned = true;
+            }
+
             await db.insert(deckCard).values({
               deckId: input.deckId,
               oracleId: foundCard.oracleId,
               preferredScryfallId: foundCard.id,
               quantity: row.quantity,
               board: "main",
-              isCommander: false,
+              isCommander,
               isCompanion: false,
               isProxy: false,
             });

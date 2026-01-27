@@ -33,6 +33,7 @@ import {
   useDeckCardCount,
   useDeckCards,
   useDeckCardsByCategory,
+  useDeckCommanders,
   type CardCategory,
 } from "@/hooks/use-deck-cards-by-category";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -53,6 +54,8 @@ function DeckDetailPage() {
   const { data: deck } = useDeck(deckId);
   const { data: cardCount } = useDeckCardCount(deckId);
   const { data: allCards } = useDeckCards(deckId);
+  const { data: commanders } = useDeckCommanders(deckId);
+  const isCommanderDeck = deck?.format === "commander";
 
   const importMutation = useMutation({
     ...orpc.decks.importCards.mutationOptions(),
@@ -272,12 +275,26 @@ function DeckDetailPage() {
               <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
             </div>
             <div className="space-y-6">
+              {/* Commander section - shown prominently for commander decks */}
+              {isCommanderDeck && commanders && commanders.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-lg font-semibold text-primary">
+                    Commander{commanders.length > 1 ? "s" : ""} ({commanders.length})
+                  </h3>
+                  <MtgCardGrid view={viewMode}>
+                    {commanders.map((card) => (
+                      <MtgCardItem key={card.id} card={card} view={viewMode} />
+                    ))}
+                  </MtgCardGrid>
+                </div>
+              )}
               {CARD_CATEGORIES.map((category) => (
                 <DeckCardCategory
                   key={category}
                   deckId={deckId}
                   category={category}
                   view={viewMode}
+                  excludeCommanders={isCommanderDeck}
                 />
               ))}
             </div>
@@ -292,14 +309,18 @@ interface DeckCardCategoryProps {
   deckId: string;
   category: CardCategory;
   view: MtgCardViewMode;
+  excludeCommanders?: boolean;
 }
 
-function DeckCardCategory({ deckId, category, view }: DeckCardCategoryProps) {
+function DeckCardCategory({ deckId, category, view, excludeCommanders }: DeckCardCategoryProps) {
   const { data: cards } = useDeckCardsByCategory(deckId, category);
 
-  if (!cards || cards.length === 0) return null;
+  // Filter out commanders if they're displayed separately
+  const filteredCards = excludeCommanders ? cards?.filter((card) => !card.isCommander) : cards;
 
-  const categoryCount = cards.reduce((total, card) => total + (card.quantity ?? 1), 0);
+  if (!filteredCards || filteredCards.length === 0) return null;
+
+  const categoryCount = filteredCards.reduce((total, card) => total + (card.quantity ?? 1), 0);
 
   return (
     <div>
@@ -307,7 +328,7 @@ function DeckCardCategory({ deckId, category, view }: DeckCardCategoryProps) {
         {category} ({categoryCount})
       </h3>
       <MtgCardGrid view={view}>
-        {cards.map((card) => (
+        {filteredCards.map((card) => (
           <MtgCardItem key={card.id} card={card} view={view} />
         ))}
       </MtgCardGrid>

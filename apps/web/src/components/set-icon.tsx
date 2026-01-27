@@ -1,4 +1,4 @@
-const setData = {
+const _setData = {
   data: [
     {
       object: "set",

@@ -27,8 +27,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc, queryClient } from "@/utils/orpc";
-import { sum, useLiveQuery } from "@tanstack/react-db";
+import { eq, sum, useLiveQuery } from "@tanstack/react-db";
 import { useDbCollections } from "@/lib/db/db-context";
+import type { ScryfallCardDoc } from "@/lib/db/db";
 
 export const Route = createFileRoute("/(app)/_authed/decks/")({
   component: DecksPage,
@@ -39,7 +40,7 @@ type DeckStatus = "active" | "retired" | "in_progress" | "theorycraft";
 type DeckArchetype = "aggro" | "control" | "combo" | "midrange" | "tempo" | "other";
 
 function DecksPage() {
-  const { deckCardCollection, deckCollection } = useDbCollections();
+  const { deckCardCollection, deckCollection, scryfallCardCollection } = useDbCollections();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -53,6 +54,32 @@ function DecksPage() {
         deckId: deckCard.deckId,
         cardCount: sum(deckCard.quantity),
       })),
+  );
+
+  // Query for commanders (cards with isCommander = true) with their scryfall data
+  const { data: commanderCards } = useLiveQuery((q) =>
+    q
+      .from({ deckCard: deckCardCollection })
+      .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+        eq(deckCard.preferredScryfallId, card.id),
+      )
+      .fn.where((row) => row.deckCard.isCommander === true)
+      .select(({ deckCard, card }) => ({
+        deckId: deckCard.deckId,
+        scryfallCard: card,
+      })),
+  );
+
+  // Group commanders by deck ID for easy lookup
+  const commandersByDeckId = commanderCards.reduce(
+    (acc, { deckId, scryfallCard }) => {
+      if (!acc[deckId]) {
+        acc[deckId] = [];
+      }
+      acc[deckId].push(scryfallCard);
+      return acc;
+    },
+    {} as Record<string, ScryfallCardDoc[]>,
   );
 
   return (
@@ -85,6 +112,7 @@ function DecksPage() {
                   updatedAt: new Date(deck.updatedAt),
                   cardCount: deckCardCount.find((dc) => dc.deckId === deck.id)?.cardCount ?? 0,
                 }}
+                commanders={commandersByDeckId[deck.id]}
               />
             ))}
           </div>
@@ -109,22 +137,83 @@ interface Deck {
   cardCount: number;
 }
 
-function DeckCard({ deck }: { deck: Deck }) {
-  const navigate = useNavigate();
+interface DeckCardProps {
+  deck: Deck;
+  commanders?: ScryfallCardDoc[];
+}
 
+function DeckCard({ deck, commanders }: DeckCardProps) {
+  const navigate = useNavigate();
+  const isCommanderDeck = deck.format === "commander";
+  const hasCommander = commanders && commanders.length > 0;
+
+  // Commander deck with commander - show featured card layout
+  if (isCommanderDeck && hasCommander) {
+    return (
+      <Card
+        className="group cursor-pointer overflow-hidden transition-all hover:ring-2 hover:ring-primary/50"
+        onClick={() => navigate({ to: "/decks/$deckId", params: { deckId: deck.id } })}
+      >
+        {/* Commander art as hero image */}
+        <div className="relative h-32 overflow-hidden bg-gradient-to-b from-muted to-muted/50">
+          <img
+            src={commanders[0].imageUri ?? undefined}
+            alt={commanders[0].name}
+            className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+          />
+          {/* Gradient overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+
+          {/* Partner commander indicator */}
+          {commanders.length > 1 && (
+            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-xs font-medium backdrop-blur-sm">
+              <span>Partners</span>
+            </div>
+          )}
+
+          {/* Deck name overlay */}
+          <div className="absolute right-0 bottom-0 left-0 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="truncate font-semibold text-foreground">{deck.name}</h3>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Card content */}
+        <CardContent className="p-3">
+          <p className="mb-2 truncate text-sm font-medium text-foreground/80">
+            {commanders.map((c) => c.name).join(" & ")}
+          </p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {deck.cardCount} cards
+              </span>
+              <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {getStatusLabel(deck.status)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Non-commander deck or commander deck without commander set - standard layout
   return (
     <Card
-      className="cursor-pointer transition-colors hover:bg-accent/50"
+      className="group cursor-pointer transition-all hover:ring-2 hover:ring-primary/50"
       onClick={() => navigate({ to: "/decks/$deckId", params: { deckId: deck.id } })}
     >
       <CardHeader className="flex-row items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/20">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <Swords className="h-6 w-6 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <h3 className="truncate font-semibold">{deck.name}</h3>
-            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </div>
           <div className="mt-1 flex items-center gap-2">
             <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium uppercase">
@@ -157,27 +246,6 @@ function getStatusLabel(status: string): string {
       return "Theorycraft";
     default:
       return status;
-  }
-}
-
-function getFormatLabel(format: string): string {
-  switch (format) {
-    case "commander":
-      return "Commander";
-    case "standard":
-      return "Standard";
-    case "modern":
-      return "Modern";
-    case "legacy":
-      return "Legacy";
-    case "pioneer":
-      return "Pioneer";
-    case "pauper":
-      return "Pauper";
-    case "other":
-      return "Other";
-    default:
-      return format;
   }
 }
 
