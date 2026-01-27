@@ -83,6 +83,13 @@ bun run destroy          # Destroy Cloudflare resources
 - No test framework is currently configured in this project
 - If adding tests, use `bun:test` or Vitest (both compatible with Bun)
 
+### Development Server
+
+> **IMPORTANT**: The development server is always running and managed by the user. Do NOT attempt to start the server yourself with `bun run dev`, `bun run dev:web`, or `bun run dev:server`. Simply assume the server is available at:
+>
+> - **Web app**: http://localhost:3001
+> - **API server**: http://localhost:3002
+
 ### Browser End-to-End Testing (agent-browser)
 
 > **IMPORTANT**: All browser-based end-to-end testing MUST be performed using the `agent-browser` CLI tool. Do not use Playwright, Puppeteer, or other browser automation libraries directly.

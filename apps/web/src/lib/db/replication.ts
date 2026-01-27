@@ -457,6 +457,10 @@ export function setupScryfallCardReplication(
   db: ManaVaultDatabase,
   client: AppRouterClient,
 ): RxReplicationState<ScryfallCardDoc, ReplicationCheckpoint> {
+  // NOTE: We don't use live streaming (SSE) for scryfall cards because browsers
+  // have a limit of ~6 concurrent connections per origin, and we already have
+  // 5 other SSE streams. Instead, we use rerun() to trigger syncs after deck
+  // card changes via the deckCardReplicationState.
   const replicationState = replicateRxCollection<ScryfallCardDoc, ReplicationCheckpoint>({
     collection: db.scryfall_cards,
     replicationIdentifier: "scryfall-card-pull-replication",
@@ -481,8 +485,9 @@ export function setupScryfallCardReplication(
     autoStart: true,
     // No push handler - pull-only replication (scryfall cards are read-only)
     push: undefined,
-    // No live streaming for now - just one-time sync
-    live: false,
+    // Keep live: true so reSync() works, but without a stream$ so it only pulls on demand
+    // We trigger reSync() after deck card changes to fetch new scryfall cards
+    live: true,
     // Retry on error
     retryTime: 5000,
   });
@@ -490,10 +495,6 @@ export function setupScryfallCardReplication(
   // Log replication events for debugging
   replicationState.error$.subscribe((error) => {
     console.error("Scryfall card replication error:", error);
-  });
-
-  replicationState.active$.subscribe((active) => {
-    console.log("Scryfall card replication active:", active);
   });
 
   return replicationState;

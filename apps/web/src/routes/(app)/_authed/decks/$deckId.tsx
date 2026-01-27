@@ -6,7 +6,9 @@ import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
+import { CardSearchDialog } from "@/components/card-search";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import type { SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGrid,
@@ -43,6 +45,7 @@ function DeckDetailPage() {
   const { deckId } = Route.useParams();
   const navigate = useNavigate();
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
@@ -83,6 +86,18 @@ function DeckDetailPage() {
     },
   });
 
+  const addCardsMutation = useMutation({
+    ...orpc.decks.addCardsFromSearch.mutationOptions(),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setIsSearchOpen(false);
+      // RxDB sync handles the UI update via deckCardPublisher RESYNC event
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to add cards");
+    },
+  });
+
   const handleImport = (data: CardImportData) => {
     importMutation.mutate({
       deckId,
@@ -93,6 +108,16 @@ function DeckDetailPage() {
 
   const handleDelete = () => {
     deleteMutation.mutate({ id: deckId });
+  };
+
+  const handleAddFromSearch = (cards: SelectedCard[]) => {
+    addCardsMutation.mutate({
+      deckId,
+      cards: cards.map((c) => ({
+        scryfallId: c.card.id,
+        quantity: c.quantity,
+      })),
+    });
   };
 
   if (!deck) {
@@ -138,7 +163,7 @@ function DeckDetailPage() {
                 className="w-full justify-start"
                 onClick={() => {
                   setIsAddMenuOpen(false);
-                  // TODO: Open search dialog
+                  setIsSearchOpen(true);
                 }}
               >
                 <Search className="mr-2 h-4 w-4" />
@@ -196,6 +221,14 @@ function DeckDetailPage() {
         warningMessage="This will permanently delete the deck and all cards in it. Your collection cards will not be affected."
       />
 
+      <CardSearchDialog
+        open={isSearchOpen}
+        onOpenChange={setIsSearchOpen}
+        onSelect={handleAddFromSearch}
+        title={`Add Cards to "${deck.name}"`}
+        description="Search for Magic cards to add to this deck. You can select multiple cards and specify quantities."
+      />
+
       <PageContent>
         {/* Deck metadata */}
         <div className="mb-6 flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -231,9 +264,7 @@ function DeckDetailPage() {
             title="No cards in this deck"
             description="Start building your deck by importing cards or searching for cards to add."
             onImportClick={() => setIsImportOpen(true)}
-            onAddClick={() => {
-              // TODO: Open search dialog
-            }}
+            onAddClick={() => setIsSearchOpen(true)}
           />
         ) : (
           <>

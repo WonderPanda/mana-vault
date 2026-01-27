@@ -7,6 +7,7 @@ import z from "zod";
 import { protectedProcedure } from "../index";
 import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
+import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
 
 /**
@@ -356,5 +357,97 @@ export const listsRouter = {
       await db.delete(virtualList).where(eq(virtualList.id, input.id));
 
       return { success: true, deletedListName: list.name };
+    }),
+
+  /**
+   * Add cards from Scryfall search to a list.
+   * This creates virtual_list_card entries with scryfall references.
+   *
+   * Per SCHEMA.md: Adding to a list does NOT create collection cards.
+   * Lists are staging areas that reference Scryfall cards directly.
+   */
+  addCardsFromSearch: protectedProcedure
+    .input(
+      z.object({
+        /** The ID of the list to add cards to */
+        listId: z.string(),
+        /** Cards to add with their Scryfall IDs and quantities */
+        cards: z
+          .array(
+            z.object({
+              scryfallId: z.string(),
+              quantity: z.number().int().positive().default(1),
+            }),
+          )
+          .min(1, "At least one card is required"),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      // Verify the list exists and belongs to the user
+      const [list] = await db
+        .select({ id: virtualList.id })
+        .from(virtualList)
+        .where(and(eq(virtualList.id, input.listId), eq(virtualList.userId, userId)));
+
+      if (!list) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found" });
+      }
+
+      let addedCount = 0;
+      let skippedCount = 0;
+      let totalQuantity = 0;
+
+      // Process each card
+      for (const cardInput of input.cards) {
+        // Ensure the scryfall card exists in our database
+        // If not, fetch it from Scryfall API
+        const card = await ensureScryfallCard(cardInput.scryfallId);
+
+        if (!card) {
+          skippedCount++;
+          console.warn(`Card not found in Scryfall: ${cardInput.scryfallId}`);
+          continue;
+        }
+
+        try {
+          // Create virtual_list_card entry
+          await db.insert(virtualListCard).values({
+            virtualListId: input.listId,
+            scryfallCardId: card.id,
+            quantity: cardInput.quantity,
+          });
+
+          // Touch the scryfall card's updated_at to trigger replication sync
+          // This ensures the client pulls the scryfall card data even if it already existed in the DB
+          await db
+            .update(scryfallCard)
+            .set({ updatedAt: new Date() })
+            .where(eq(scryfallCard.id, card.id));
+
+          addedCount++;
+          totalQuantity += cardInput.quantity;
+        } catch (error) {
+          // Handle any insertion errors
+          if (isForeignKeyError(error)) {
+            skippedCount++;
+            console.warn(`Skipping card with FK error: ${card.id}`);
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      return {
+        listId: input.listId,
+        added: addedCount,
+        totalQuantity,
+        skipped: skippedCount,
+        message:
+          skippedCount > 0
+            ? `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""}. ${skippedCount} card${skippedCount !== 1 ? "s" : ""} could not be found.`
+            : `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""} to the list.`,
+      };
     }),
 };

@@ -376,6 +376,18 @@ async function initializeDb() {
   );
   const scryfallCardReplicationState = setupScryfallCardReplication(database, client);
 
+  // When deck cards change, trigger a scryfall card sync to ensure we have the card data
+  // for the join. This is needed because scryfall card replication doesn't use live SSE
+  // (to avoid hitting the browser's ~6 concurrent connection limit).
+  deckCardReplicationState.received$.subscribe(async () => {
+    scryfallCardReplicationState.reSync();
+    try {
+      await scryfallCardReplicationState.awaitInSync();
+    } catch {
+      // Ignore errors - the replication will retry automatically
+    }
+  });
+
   const deckCollection = createCollection(
     rxdbCollectionOptions({
       rxCollection: database.decks,

@@ -15,7 +15,9 @@ import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
+import { CardSearchDialog } from "@/components/card-search";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import type { SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGridSkeleton,
@@ -48,6 +50,7 @@ function CollectionDetailPage() {
   const { data: cards = [] } = useCollectionCardsByContainer(collectionId);
 
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
@@ -89,6 +92,15 @@ function CollectionDetailPage() {
 
   const handleDelete = () => {
     deleteMutation.mutate({ id: collectionId });
+  };
+
+  const handleAddFromSearch = (cards: SelectedCard[]) => {
+    // TODO: Call API to add cards to collection once endpoint is implemented
+    const totalCards = cards.reduce((sum, c) => sum + c.quantity, 0);
+    toast.info(
+      `Selected ${totalCards} card${totalCards !== 1 ? "s" : ""} - add to collection endpoint coming soon`,
+    );
+    setIsSearchOpen(false);
   };
 
   if (!collection) {
@@ -133,7 +145,7 @@ function CollectionDetailPage() {
                 className="w-full justify-start"
                 onClick={() => {
                   setIsAddMenuOpen(false);
-                  // TODO: Open search dialog
+                  setIsSearchOpen(true);
                 }}
               >
                 <Search className="mr-2 h-4 w-4" />
@@ -191,14 +203,20 @@ function CollectionDetailPage() {
         warningMessage="This will permanently delete the collection. Cards in this collection will become unassigned but will NOT be deleted from your collection."
       />
 
+      <CardSearchDialog
+        open={isSearchOpen}
+        onOpenChange={setIsSearchOpen}
+        onSelect={handleAddFromSearch}
+        title={`Add Cards to "${collection.name}"`}
+        description="Search for Magic cards to add to this collection. You can select multiple cards and specify quantities."
+      />
+
       <PageContent ref={scrollContainerRef}>
         {cards.length === 0 ? (
           <EmptyCardsState
             variant="collection"
             onImportClick={() => setIsImportOpen(true)}
-            onAddClick={() => {
-              // TODO: Open search dialog
-            }}
+            onAddClick={() => setIsSearchOpen(true)}
           />
         ) : (
           <>

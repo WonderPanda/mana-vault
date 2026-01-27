@@ -7,6 +7,7 @@ import z from "zod";
 import { protectedProcedure } from "../index";
 import { parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
+import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
 import {
   deckPublisher,
@@ -324,6 +325,7 @@ export const decksRouter = {
 
       // Emit RESYNC to notify connected clients to re-sync deck cards
       // This is more efficient than publishing each card individually for bulk imports
+      // Note: Scryfall card sync is triggered client-side when deck cards change
       if (importedCount > 0) {
         deckCardPublisher.publish(userId, "RESYNC");
       }
@@ -465,6 +467,111 @@ export const decksRouter = {
       });
 
       return { success: true, deletedDeckName: existingDeck.name };
+    }),
+
+  /**
+   * Add cards from Scryfall search to a deck.
+   * This creates deck_card entries with oracle_id and preferred printing.
+   *
+   * Per SCHEMA.md: deck_card uses oracle_id for the card concept,
+   * with optional preferred_scryfall_id for the selected printing.
+   */
+  addCardsFromSearch: protectedProcedure
+    .input(
+      z.object({
+        /** The ID of the deck to add cards to */
+        deckId: z.string(),
+        /** Cards to add with their Scryfall IDs and quantities */
+        cards: z
+          .array(
+            z.object({
+              scryfallId: z.string(),
+              quantity: z.number().int().positive().default(1),
+            }),
+          )
+          .min(1, "At least one card is required"),
+        /** Which board to add the cards to (default: mainboard) */
+        board: z.enum(["main", "sideboard", "maybeboard"]).default("main"),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      // Verify the deck exists and belongs to the user
+      const [existingDeck] = await db
+        .select({ id: deck.id })
+        .from(deck)
+        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId)));
+
+      if (!existingDeck) {
+        throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
+      }
+
+      let addedCount = 0;
+      let skippedCount = 0;
+      let totalQuantity = 0;
+
+      // Process each card
+      for (const cardInput of input.cards) {
+        // Ensure the scryfall card exists in our database
+        // If not, fetch it from Scryfall API
+        const card = await ensureScryfallCard(cardInput.scryfallId);
+
+        if (!card) {
+          skippedCount++;
+          console.warn(`Card not found in Scryfall: ${cardInput.scryfallId}`);
+          continue;
+        }
+
+        try {
+          // Create deck_card entry with oracle_id and preferred printing
+          await db.insert(deckCard).values({
+            deckId: input.deckId,
+            oracleId: card.oracleId,
+            preferredScryfallId: card.id,
+            quantity: cardInput.quantity,
+            board: input.board,
+            isCommander: false,
+            isCompanion: false,
+            isProxy: false,
+          });
+
+          // Touch the scryfall card's updated_at to trigger replication sync
+          // This ensures the client pulls the scryfall card data even if it already existed in the DB
+          await db
+            .update(scryfallCard)
+            .set({ updatedAt: new Date() })
+            .where(eq(scryfallCard.id, card.id));
+
+          addedCount++;
+          totalQuantity += cardInput.quantity;
+        } catch (error) {
+          // Handle any insertion errors
+          if (isForeignKeyError(error)) {
+            skippedCount++;
+            console.warn(`Skipping card with FK error: ${card.id}`);
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // Emit RESYNC to notify connected clients to re-sync deck cards
+      // Note: Scryfall card sync is triggered client-side when deck cards change
+      if (addedCount > 0) {
+        deckCardPublisher.publish(userId, "RESYNC");
+      }
+
+      return {
+        deckId: input.deckId,
+        added: addedCount,
+        totalQuantity,
+        skipped: skippedCount,
+        message:
+          skippedCount > 0
+            ? `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""}. ${skippedCount} card${skippedCount !== 1 ? "s" : ""} could not be found.`
+            : `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""} to the deck.`,
+      };
     }),
 
   // =============================================================================

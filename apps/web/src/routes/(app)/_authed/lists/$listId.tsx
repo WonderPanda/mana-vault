@@ -18,7 +18,9 @@ import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
+import { CardSearchDialog } from "@/components/card-search";
 import { DeleteListDialog } from "@/components/delete-list-dialog";
+import type { SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGridSkeleton,
@@ -56,6 +58,7 @@ function ListDetailPage() {
   const { data: list } = useSuspenseQuery(orpc.lists.get.queryOptions({ input: { id: listId } }));
   const { data: cards } = useSuspenseQuery(orpc.lists.getCards.queryOptions({ input: { listId } }));
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
@@ -92,6 +95,23 @@ function ListDetailPage() {
     },
   });
 
+  const addCardsMutation = useMutation({
+    ...orpc.lists.addCardsFromSearch.mutationOptions(),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setIsSearchOpen(false);
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.get.queryOptions({ input: { id: listId } }).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.getCards.queryOptions({ input: { listId } }).queryKey,
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to add cards");
+    },
+  });
+
   const handleImport = (data: CardImportData) => {
     importMutation.mutate({
       listId,
@@ -102,6 +122,16 @@ function ListDetailPage() {
 
   const handleDelete = () => {
     deleteMutation.mutate({ id: listId });
+  };
+
+  const handleAddFromSearch = (cards: SelectedCard[]) => {
+    addCardsMutation.mutate({
+      listId,
+      cards: cards.map((c) => ({
+        scryfallId: c.card.id,
+        quantity: c.quantity,
+      })),
+    });
   };
 
   const TypeIcon = getListTypeIcon(list.listType, list.sourceType);
@@ -145,7 +175,7 @@ function ListDetailPage() {
                 className="w-full justify-start"
                 onClick={() => {
                   setIsAddMenuOpen(false);
-                  // TODO: Open search dialog
+                  setIsSearchOpen(true);
                 }}
               >
                 <Search className="mr-2 h-4 w-4" />
@@ -201,6 +231,14 @@ function ListDetailPage() {
         isDeleting={deleteMutation.isPending}
       />
 
+      <CardSearchDialog
+        open={isSearchOpen}
+        onOpenChange={setIsSearchOpen}
+        onSelect={handleAddFromSearch}
+        title={`Add Cards to "${list.name}"`}
+        description="Search for Magic cards to add to this list. You can select multiple cards and specify quantities."
+      />
+
       <PageContent ref={scrollContainerRef}>
         {/* List metadata */}
         <div className="mb-6 flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -232,9 +270,7 @@ function ListDetailPage() {
           <EmptyCardsState
             variant="list"
             onImportClick={() => setIsImportOpen(true)}
-            onAddClick={() => {
-              // TODO: Open search dialog
-            }}
+            onAddClick={() => setIsSearchOpen(true)}
           />
         ) : (
           <>
