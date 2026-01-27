@@ -5,8 +5,16 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+function Dialog({
+  dismissible = true,
+  ...props
+}: DialogPrimitive.Root.Props & {
+  /** Whether the dialog can be dismissed by clicking outside or pressing Escape. Defaults to true. */
+  dismissible?: boolean;
+}) {
+  return (
+    <DialogPrimitive.Root data-slot="dialog" disablePointerDismissal={!dismissible} {...props} />
+  );
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {

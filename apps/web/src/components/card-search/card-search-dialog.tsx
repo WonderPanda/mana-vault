@@ -83,7 +83,7 @@ export function CardSearchDialog({
   const totalQuantity = selectedCards.reduce((sum, sc) => sum + sc.quantity, 0);
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleClose} dismissible={false}>
       <DialogContent className="flex h-[90vh] max-h-[900px] flex-col sm:max-w-4xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
