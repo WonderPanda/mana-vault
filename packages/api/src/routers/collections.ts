@@ -5,12 +5,14 @@ import {
   storageContainer,
   collectionCard,
   collectionCardLocation,
+  scryfallCard,
 } from "@mana-vault/db/schema/app";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
 import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
+import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import {
   collectionCardPublisher,
   collectionCardLocationPublisher,
@@ -160,6 +162,116 @@ export const collectionsRouter = {
         assignedAt: location.assignedAt,
         card: location.collectionCard.scryfallCard,
       }));
+    }),
+
+  /**
+   * Add cards from Scryfall search to a collection.
+   * Creates collection_card + collection_card_location entries.
+   *
+   * Per SCHEMA.md: Each row = one physical card (no quantity field).
+   * So we create one collection_card entry per unit of quantity.
+   */
+  addCardsFromSearch: protectedProcedure
+    .input(
+      z.object({
+        /** The storage container (collection) to add cards to */
+        collectionId: z.string(),
+        /** Cards to add with their Scryfall IDs and quantities */
+        cards: z
+          .array(
+            z.object({
+              scryfallId: z.string(),
+              quantity: z.number().int().positive().default(1),
+            }),
+          )
+          .min(1, "At least one card is required"),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      // Verify the collection exists and belongs to the user
+      const collection = await db.query.storageContainer.findFirst({
+        where: and(
+          eq(storageContainer.id, input.collectionId),
+          eq(storageContainer.userId, userId),
+        ),
+      });
+
+      if (!collection) {
+        throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
+      }
+
+      let addedCount = 0;
+      let skippedCount = 0;
+      let totalQuantity = 0;
+
+      for (const cardInput of input.cards) {
+        const card = await ensureScryfallCard(cardInput.scryfallId);
+
+        if (!card) {
+          skippedCount++;
+          console.warn(`Card not found in Scryfall: ${cardInput.scryfallId}`);
+          continue;
+        }
+
+        try {
+          // Create one collection_card + location per unit of quantity
+          for (let i = 0; i < cardInput.quantity; i++) {
+            const cardId = randomUUID();
+
+            await db.insert(collectionCard).values({
+              id: cardId,
+              userId,
+              scryfallCardId: card.id,
+              condition: "near_mint",
+              isFoil: false,
+              language: "en",
+              notes: null,
+              acquiredAt: new Date(),
+              status: "owned",
+            });
+
+            await db.insert(collectionCardLocation).values({
+              id: randomUUID(),
+              collectionCardId: cardId,
+              storageContainerId: input.collectionId,
+            });
+          }
+
+          // Touch the scryfall card's updated_at to trigger replication sync
+          await db
+            .update(scryfallCard)
+            .set({ updatedAt: new Date() })
+            .where(eq(scryfallCard.id, card.id));
+
+          addedCount++;
+          totalQuantity += cardInput.quantity;
+        } catch (error) {
+          if (isForeignKeyError(error)) {
+            skippedCount++;
+            console.warn(`Skipping card with FK error: ${card.id}`);
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (addedCount > 0) {
+        collectionCardPublisher.publish(userId, "RESYNC");
+        collectionCardLocationPublisher.publish(userId, "RESYNC");
+      }
+
+      return {
+        collectionId: input.collectionId,
+        added: addedCount,
+        totalQuantity,
+        skipped: skippedCount,
+        message:
+          skippedCount > 0
+            ? `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""}. ${skippedCount} card${skippedCount !== 1 ? "s" : ""} could not be found.`
+            : `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""} to the collection.`,
+      };
     }),
 
   /**
@@ -828,3 +940,7 @@ export const collectionsRouter = {
       }),
   },
 };
+
+function isForeignKeyError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("FOREIGN KEY constraint failed");
+}

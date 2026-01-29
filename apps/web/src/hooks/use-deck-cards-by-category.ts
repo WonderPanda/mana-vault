@@ -1,7 +1,8 @@
 import { and, eq, sum, useLiveQuery } from "@tanstack/react-db";
+import { useMemo } from "react";
 
 import { useDbCollections } from "@/lib/db/db-context";
-import type { DeckCardDoc, ScryfallCardDoc } from "@/lib/db/db";
+import type { CollectionCardDoc, DeckCardDoc, ScryfallCardDoc } from "@/lib/db/db";
 
 export const BOARD_TYPES = {
   MAIN: "main",
@@ -37,6 +38,8 @@ export const CARD_CATEGORIES: CardCategory[] = [
   "Lands",
   "Other",
 ];
+
+export type OwnershipStatus = "owned-in-deck" | "owned-elsewhere" | "not-owned";
 
 interface CategoryConfig {
   name: CardCategory;
@@ -86,7 +89,10 @@ function matchesCategory(typeLine: string | null | undefined, category: CardCate
   return categoryConfig.matches(mainTypes) && !higherPriorityMatch;
 }
 
-export type DeckCardWithScryfall = DeckCardDoc & { scryfallCard: ScryfallCardDoc };
+export type DeckCardWithScryfall = DeckCardDoc & {
+  scryfallCard: ScryfallCardDoc;
+  ownershipStatus?: OwnershipStatus;
+};
 
 /**
  * Hook that returns deck cards filtered by MTG card category.
@@ -98,23 +104,56 @@ export type DeckCardWithScryfall = DeckCardDoc & { scryfallCard: ScryfallCardDoc
  * @returns Live query result with cards matching the category
  */
 export function useDeckCardsByCategory(deckId: string, category: CardCategory, board?: BoardType) {
-  const { deckCardCollection, scryfallCardCollection } = useDbCollections();
+  const { deckCardCollection, scryfallCardCollection, collectionCardCollection } =
+    useDbCollections();
 
   return useLiveQuery(
-    (q) =>
-      q
-        .from({ deckCard: deckCardCollection })
-        .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
-          eq(deckCard.preferredScryfallId, card.id),
-        )
-        .where(({ deckCard }) =>
-          board
-            ? and(eq(deckCard.deckId, deckId), eq(deckCard.board, board))
-            : eq(deckCard.deckId, deckId),
-        )
-        .fn.where((row) => matchesCategory(row.card?.typeLine, category))
-        .orderBy(({ card }) => card.name, "asc")
-        .select(({ deckCard, card }) => ({ ...deckCard, scryfallCard: card })),
+    (q) => {
+      // Subquery: Get all distinct oracle IDs that the user owns
+      const ownedOracleIds = q
+        .from({ cc: collectionCardCollection })
+        .innerJoin({ sc: scryfallCardCollection }, ({ cc, sc }) => eq(cc.scryfallCardId, sc.id))
+        .where(({ cc }) => eq(cc.status, "owned"))
+        .select(({ sc }) => ({
+          oracleId: sc.oracleId,
+        }))
+        .distinct();
+
+      // Main query
+      return (
+        q
+          .from({ deckCard: deckCardCollection })
+          .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+            eq(deckCard.preferredScryfallId, card.id),
+          )
+          // Left join to check if we own any card with this oracle_id
+          .leftJoin({ owned: ownedOracleIds }, ({ card, owned }) =>
+            eq(card.oracleId, owned.oracleId),
+          )
+          .where(({ deckCard }) =>
+            board
+              ? and(eq(deckCard.deckId, deckId), eq(deckCard.board, board))
+              : eq(deckCard.deckId, deckId),
+          )
+          .fn.where((row) => matchesCategory(row.card?.typeLine, category))
+          .orderBy(({ card }) => card.name, "asc")
+          .fn.select((row) => {
+            let ownershipStatus: OwnershipStatus = "not-owned";
+
+            if (row.deckCard.collectionCardId) {
+              ownershipStatus = "owned-in-deck";
+            } else if (row.owned) {
+              ownershipStatus = "owned-elsewhere";
+            }
+
+            return {
+              ...row.deckCard,
+              scryfallCard: row.card,
+              ownershipStatus,
+            };
+          })
+      );
+    },
     [deckId, category, board],
   );
 }
@@ -127,24 +166,54 @@ export function useDeckCardsByCategory(deckId: string, category: CardCategory, b
  * @param board - Optional board type to filter by (main, sideboard, maybeboard)
  */
 export function useDeckCards(deckId: string, board?: BoardType) {
-  const { deckCardCollection, scryfallCardCollection } = useDbCollections();
+  const { deckCardCollection, scryfallCardCollection, collectionCardCollection } =
+    useDbCollections();
 
   return useLiveQuery(
-    (q) =>
-      q
-        .from({ deckCard: deckCardCollection })
-        .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
-          eq(deckCard.preferredScryfallId, card.id),
-        )
-        .where(({ deckCard }) =>
-          board
-            ? and(eq(deckCard.deckId, deckId), eq(deckCard.board, board))
-            : eq(deckCard.deckId, deckId),
-        )
-        .select(({ deckCard, card }) => ({
-          ...deckCard,
-          scryfallCard: card,
-        })),
+    (q) => {
+      // Subquery: Get all distinct oracle IDs that the user owns
+      const ownedOracleIds = q
+        .from({ cc: collectionCardCollection })
+        .innerJoin({ sc: scryfallCardCollection }, ({ cc, sc }) => eq(cc.scryfallCardId, sc.id))
+        .where(({ cc }) => eq(cc.status, "owned"))
+        .select(({ sc }) => ({
+          oracleId: sc.oracleId,
+        }))
+        .distinct();
+
+      // Main query
+      return (
+        q
+          .from({ deckCard: deckCardCollection })
+          .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+            eq(deckCard.preferredScryfallId, card.id),
+          )
+          // Left join to check if we own any card with this oracle_id
+          .leftJoin({ owned: ownedOracleIds }, ({ card, owned }) =>
+            eq(card.oracleId, owned.oracleId),
+          )
+          .where(({ deckCard }) =>
+            board
+              ? and(eq(deckCard.deckId, deckId), eq(deckCard.board, board))
+              : eq(deckCard.deckId, deckId),
+          )
+          .fn.select((row) => {
+            let ownershipStatus: OwnershipStatus = "not-owned";
+
+            if (row.deckCard.collectionCardId) {
+              ownershipStatus = "owned-in-deck";
+            } else if (row.owned) {
+              ownershipStatus = "owned-elsewhere";
+            }
+
+            return {
+              ...row.deckCard,
+              scryfallCard: row.card,
+              ownershipStatus,
+            };
+          })
+      );
+    },
     [deckId, board],
   );
 }
@@ -154,22 +223,52 @@ export function useDeckCards(deckId: string, board?: BoardType) {
  * Commander decks can have 1-2 commanders (for Partner commanders).
  */
 export function useDeckCommanders(deckId: string) {
-  const { deckCardCollection, scryfallCardCollection } = useDbCollections();
+  const { deckCardCollection, scryfallCardCollection, collectionCardCollection } =
+    useDbCollections();
 
   return useLiveQuery(
-    (q) =>
-      q
-        .from({ deckCard: deckCardCollection })
-        .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
-          eq(deckCard.preferredScryfallId, card.id),
-        )
-        .where(({ deckCard }) => eq(deckCard.deckId, deckId))
-        .fn.where((row) => row.deckCard.isCommander === true)
-        .orderBy(({ card }) => card.name, "asc")
-        .select(({ deckCard, card }) => ({
-          ...deckCard,
-          scryfallCard: card,
-        })),
+    (q) => {
+      // Subquery: Get all distinct oracle IDs that the user owns
+      const ownedOracleIds = q
+        .from({ cc: collectionCardCollection })
+        .innerJoin({ sc: scryfallCardCollection }, ({ cc, sc }) => eq(cc.scryfallCardId, sc.id))
+        .where(({ cc }) => eq(cc.status, "owned"))
+        .select(({ sc }) => ({
+          oracleId: sc.oracleId,
+        }))
+        .distinct();
+
+      // Main query
+      return (
+        q
+          .from({ deckCard: deckCardCollection })
+          .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+            eq(deckCard.preferredScryfallId, card.id),
+          )
+          // Left join to check if we own any card with this oracle_id
+          .leftJoin({ owned: ownedOracleIds }, ({ card, owned }) =>
+            eq(card.oracleId, owned.oracleId),
+          )
+          .where(({ deckCard }) => eq(deckCard.deckId, deckId))
+          .fn.where((row) => row.deckCard.isCommander === true)
+          .orderBy(({ card }) => card.name, "asc")
+          .fn.select((row) => {
+            let ownershipStatus: OwnershipStatus = "not-owned";
+
+            if (row.deckCard.collectionCardId) {
+              ownershipStatus = "owned-in-deck";
+            } else if (row.owned) {
+              ownershipStatus = "owned-elsewhere";
+            }
+
+            return {
+              ...row.deckCard,
+              scryfallCard: row.card,
+              ownershipStatus,
+            };
+          })
+      );
+    },
     [deckId],
   );
 }
@@ -256,4 +355,55 @@ export function useDeckCardCountByBoard(deckId: string, board: BoardType) {
   );
 
   return { data: data?.[0]?.cardCount ?? 0, ...rest };
+}
+
+/**
+ * Hook that returns the owned card count for a specific board in a deck.
+ * Returns { owned, total } where owned includes both assigned cards and cards owned elsewhere.
+ */
+export function useDeckOwnedCardCountByBoard(deckId: string, board: BoardType) {
+  const { deckCardCollection, scryfallCardCollection, collectionCardCollection } =
+    useDbCollections();
+
+  const { data, ...rest } = useLiveQuery(
+    (q) => {
+      // Subquery: Get all distinct oracle IDs that the user owns
+      const ownedOracleIds = q
+        .from({ cc: collectionCardCollection })
+        .innerJoin({ sc: scryfallCardCollection }, ({ cc, sc }) => eq(cc.scryfallCardId, sc.id))
+        .where(({ cc }) => eq(cc.status, "owned"))
+        .select(({ sc }) => ({
+          oracleId: sc.oracleId,
+        }))
+        .distinct();
+
+      // Main query
+      return q
+        .from({ deckCard: deckCardCollection })
+        .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
+          eq(deckCard.preferredScryfallId, card.id),
+        )
+        .leftJoin({ owned: ownedOracleIds }, ({ card, owned }) => eq(card.oracleId, owned.oracleId))
+        .where(({ deckCard }) => and(eq(deckCard.deckId, deckId), eq(deckCard.board, board)))
+        .select(({ deckCard, owned }) => ({
+          quantity: deckCard.quantity,
+          collectionCardId: deckCard.collectionCardId,
+          isOwned: owned?.oracleId,
+        }));
+    },
+    [deckId, board],
+  );
+
+  // Sum up owned and total quantities with memoization to prevent unnecessary re-renders
+  const counts = useMemo(() => {
+    const owned =
+      data?.reduce(
+        (sum, card) => sum + (card.collectionCardId || card.isOwned ? card.quantity : 0),
+        0,
+      ) ?? 0;
+    const total = data?.reduce((sum, card) => sum + card.quantity, 0) ?? 0;
+    return { owned, total };
+  }, [data]);
+
+  return { data: counts, ...rest };
 }

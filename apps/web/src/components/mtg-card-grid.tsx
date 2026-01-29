@@ -1,7 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Grid2X2, List } from "lucide-react";
+import { Grid2X2, List, Package, PackageCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import type { OwnershipStatus } from "@/hooks/use-deck-cards-by-category";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,8 @@ export interface MtgCardData {
   quantity?: number;
   // Whether this card has been added to the collection
   isInCollection?: boolean;
+  // Ownership status for deck cards
+  ownershipStatus?: OwnershipStatus;
 }
 
 interface MtgCardViewToggleProps {
@@ -209,8 +212,16 @@ interface MtgCardItemProps {
 }
 
 export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) {
-  const { scryfallCard, condition, isFoil, language, quantity } = card;
+  const { scryfallCard, condition, isFoil, language, quantity, ownershipStatus } = card;
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+
+  // Determine ownership icon and color
+  const ownershipIcon =
+    ownershipStatus === "owned-in-deck" ? (
+      <PackageCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+    ) : ownershipStatus === "owned-elsewhere" ? (
+      <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+    ) : null;
 
   if (view === "list") {
     return (
@@ -231,6 +242,7 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
             <span className="w-5 shrink-0 text-right text-sm text-muted-foreground">
               {quantity ?? 1}
             </span>
+            {ownershipIcon && <span className="shrink-0">{ownershipIcon}</span>}
             <span className="truncate text-sm">{scryfallCard.name}</span>
             <span className="shrink-0 text-xs text-muted-foreground">
               {scryfallCard.setCode.toUpperCase()} #{scryfallCard.collectorNumber}
@@ -266,22 +278,29 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
     );
   }
 
-  const hasDetails = condition || isFoil || language;
+  const hasDetails = condition || isFoil || language || ownershipStatus;
 
   return (
     <Card className={cn("overflow-hidden", onClick && "cursor-pointer")} onClick={onClick}>
-      {scryfallCard.imageUri ? (
-        <img
-          src={scryfallCard.imageUri}
-          alt={scryfallCard.name}
-          className="aspect-[488/680] w-full object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <div className="flex aspect-[488/680] w-full items-center justify-center bg-muted">
-          <span className="text-muted-foreground">No image</span>
-        </div>
-      )}
+      <div className="relative">
+        {scryfallCard.imageUri ? (
+          <img
+            src={scryfallCard.imageUri}
+            alt={scryfallCard.name}
+            className="aspect-[488/680] w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex aspect-[488/680] w-full items-center justify-center bg-muted">
+            <span className="text-muted-foreground">No image</span>
+          </div>
+        )}
+        {ownershipIcon && (
+          <div className="absolute right-2 top-2 rounded-full bg-background/80 p-1.5 shadow-sm backdrop-blur-sm">
+            {ownershipIcon}
+          </div>
+        )}
+      </div>
       <CardContent className="px-1 py-0.5 sm:px-3 sm:py-1">
         <h4 className="hidden truncate font-medium sm:block">{scryfallCard.name}</h4>
         {/* Mobile: single line with set code, collector number, and condition */}

@@ -38,6 +38,7 @@ import {
   useDeckCards,
   useDeckCardsByCategory,
   useDeckCommanders,
+  useDeckOwnedCardCountByBoard,
   type BoardType,
   type CardCategory,
 } from "@/hooks/use-deck-cards-by-category";
@@ -72,6 +73,10 @@ function DeckDetailPage() {
   const { data: mainCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.MAIN);
   const { data: sideboardCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.SIDEBOARD);
   const { data: consideringCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.CONSIDERING);
+
+  const { data: mainOwned } = useDeckOwnedCardCountByBoard(deckId, BOARD_TYPES.MAIN);
+  const { data: sideboardOwned } = useDeckOwnedCardCountByBoard(deckId, BOARD_TYPES.SIDEBOARD);
+  const { data: consideringOwned } = useDeckOwnedCardCountByBoard(deckId, BOARD_TYPES.CONSIDERING);
 
   const importMutation = useMutation({
     ...orpc.decks.importCards.mutationOptions(),
@@ -285,17 +290,20 @@ function DeckDetailPage() {
             value={activeBoard}
             onValueChange={(v) =>
               navigate({
+                to: ".",
                 search: (prev) => ({ ...prev, board: v as BoardType }),
               })
             }
           >
             <TabsList>
-              <TabsTrigger value={BOARD_TYPES.MAIN}>Main Deck ({mainCount ?? 0})</TabsTrigger>
+              <TabsTrigger value={BOARD_TYPES.MAIN}>
+                Main Deck ({mainOwned?.owned ?? 0}/{mainCount ?? 0})
+              </TabsTrigger>
               <TabsTrigger value={BOARD_TYPES.SIDEBOARD}>
-                Sideboard ({sideboardCount ?? 0})
+                Sideboard ({sideboardOwned?.owned ?? 0}/{sideboardCount ?? 0})
               </TabsTrigger>
               <TabsTrigger value={BOARD_TYPES.CONSIDERING}>
-                Considering ({consideringCount ?? 0})
+                Considering ({consideringOwned?.owned ?? 0}/{consideringCount ?? 0})
               </TabsTrigger>
             </TabsList>
           </Tabs>

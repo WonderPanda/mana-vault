@@ -94,13 +94,25 @@ function CollectionDetailPage() {
     deleteMutation.mutate({ id: collectionId });
   };
 
+  const addCardsMutation = useMutation({
+    ...orpc.collections.addCardsFromSearch.mutationOptions(),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setIsSearchOpen(false);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to add cards");
+    },
+  });
+
   const handleAddFromSearch = (cards: SelectedCard[]) => {
-    // TODO: Call API to add cards to collection once endpoint is implemented
-    const totalCards = cards.reduce((sum, c) => sum + c.quantity, 0);
-    toast.info(
-      `Selected ${totalCards} card${totalCards !== 1 ? "s" : ""} - add to collection endpoint coming soon`,
-    );
-    setIsSearchOpen(false);
+    addCardsMutation.mutate({
+      collectionId,
+      cards: cards.map((c) => ({
+        scryfallId: c.card.id,
+        quantity: c.quantity,
+      })),
+    });
   };
 
   if (!collection) {
