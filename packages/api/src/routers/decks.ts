@@ -199,6 +199,8 @@ export const decksRouter = {
         csvContent: z.string().min(1, "CSV content is required"),
         /** The format of the CSV for selecting the appropriate parser */
         format: importFormatSchema,
+        /** Which board to import cards to (default: main) */
+        board: z.enum(["main", "sideboard", "maybeboard"]).default("main"),
       }),
     )
     .handler(async ({ context, input }) => {
@@ -280,7 +282,7 @@ export const decksRouter = {
               oracleId: card.oracleId,
               preferredScryfallId: row.scryfallId,
               quantity: row.quantity,
-              board: "main",
+              board: input.board,
               isCommander,
               isCompanion: false,
               isProxy: false,
@@ -339,7 +341,7 @@ export const decksRouter = {
               oracleId: foundCard.oracleId,
               preferredScryfallId: foundCard.id,
               quantity: row.quantity,
-              board: "main",
+              board: input.board,
               isCommander,
               isCompanion: false,
               isProxy: false,

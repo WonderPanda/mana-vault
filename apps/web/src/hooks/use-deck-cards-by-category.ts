@@ -1,7 +1,21 @@
-import { eq, sum, useLiveQuery } from "@tanstack/react-db";
+import { and, eq, sum, useLiveQuery } from "@tanstack/react-db";
 
 import { useDbCollections } from "@/lib/db/db-context";
 import type { DeckCardDoc, ScryfallCardDoc } from "@/lib/db/db";
+
+export const BOARD_TYPES = {
+  MAIN: "main",
+  SIDEBOARD: "sideboard",
+  CONSIDERING: "maybeboard",
+} as const;
+
+export type BoardType = (typeof BOARD_TYPES)[keyof typeof BOARD_TYPES];
+
+export const BOARD_LABELS = {
+  main: "Main Deck",
+  sideboard: "Sideboard",
+  maybeboard: "Considering",
+} as const;
 
 export type CardCategory =
   | "Creatures"
@@ -80,9 +94,10 @@ export type DeckCardWithScryfall = DeckCardDoc & { scryfallCard: ScryfallCardDoc
  *
  * @param deckId - The deck ID to filter cards by
  * @param category - The card category to filter by
+ * @param board - Optional board type to filter by (main, sideboard, maybeboard)
  * @returns Live query result with cards matching the category
  */
-export function useDeckCardsByCategory(deckId: string, category: CardCategory) {
+export function useDeckCardsByCategory(deckId: string, category: CardCategory, board?: BoardType) {
   const { deckCardCollection, scryfallCardCollection } = useDbCollections();
 
   return useLiveQuery(
@@ -92,19 +107,26 @@ export function useDeckCardsByCategory(deckId: string, category: CardCategory) {
         .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
           eq(deckCard.preferredScryfallId, card.id),
         )
-        .where(({ deckCard }) => eq(deckCard.deckId, deckId))
+        .where(({ deckCard }) =>
+          board
+            ? and(eq(deckCard.deckId, deckId), eq(deckCard.board, board))
+            : eq(deckCard.deckId, deckId),
+        )
         .fn.where((row) => matchesCategory(row.card?.typeLine, category))
         .orderBy(({ card }) => card.name, "asc")
         .select(({ deckCard, card }) => ({ ...deckCard, scryfallCard: card })),
-    [deckId, category],
+    [deckId, category, board],
   );
 }
 
 /**
  * Hook that returns all deck cards (unfiltered by category).
  * Useful for checking if a deck has any cards at all.
+ *
+ * @param deckId - The deck ID to filter cards by
+ * @param board - Optional board type to filter by (main, sideboard, maybeboard)
  */
-export function useDeckCards(deckId: string) {
+export function useDeckCards(deckId: string, board?: BoardType) {
   const { deckCardCollection, scryfallCardCollection } = useDbCollections();
 
   return useLiveQuery(
@@ -114,12 +136,16 @@ export function useDeckCards(deckId: string) {
         .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
           eq(deckCard.preferredScryfallId, card.id),
         )
-        .where(({ deckCard }) => eq(deckCard.deckId, deckId))
+        .where(({ deckCard }) =>
+          board
+            ? and(eq(deckCard.deckId, deckId), eq(deckCard.board, board))
+            : eq(deckCard.deckId, deckId),
+        )
         .select(({ deckCard, card }) => ({
           ...deckCard,
           scryfallCard: card,
         })),
-    [deckId],
+    [deckId, board],
   );
 }
 
@@ -189,7 +215,7 @@ export function useDeck(deckId: string) {
 }
 
 /**
- * Hook that returns the total card count for a deck.
+ * Hook that returns the total card count for a deck (main board only).
  */
 export function useDeckCardCount(deckId: string) {
   const { deckCardCollection } = useDbCollections();
@@ -198,13 +224,35 @@ export function useDeckCardCount(deckId: string) {
     (q) =>
       q
         .from({ deckCard: deckCardCollection })
-        .where(({ deckCard }) => eq(deckCard.deckId, deckId))
+        .where(({ deckCard }) => and(eq(deckCard.deckId, deckId), eq(deckCard.board, "main")))
         .groupBy(({ deckCard }) => deckCard.deckId)
         .select(({ deckCard }) => ({
           deckId: deckCard.deckId,
           cardCount: sum(deckCard.quantity),
         })),
     [deckId],
+  );
+
+  return { data: data?.[0]?.cardCount ?? 0, ...rest };
+}
+
+/**
+ * Hook that returns the card count for a specific board in a deck.
+ */
+export function useDeckCardCountByBoard(deckId: string, board: BoardType) {
+  const { deckCardCollection } = useDbCollections();
+
+  const { data, ...rest } = useLiveQuery(
+    (q) =>
+      q
+        .from({ deckCard: deckCardCollection })
+        .where(({ deckCard }) => and(eq(deckCard.deckId, deckId), eq(deckCard.board, board)))
+        .groupBy(({ deckCard }) => deckCard.deckId)
+        .select(({ deckCard }) => ({
+          deckId: deckCard.deckId,
+          cardCount: sum(deckCard.quantity),
+        })),
+    [deckId, board],
   );
 
   return { data: data?.[0]?.cardCount ?? 0, ...rest };

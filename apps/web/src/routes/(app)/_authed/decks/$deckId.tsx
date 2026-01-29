@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, MoreHorizontal, Plus, Search, Swords, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
@@ -27,24 +28,35 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  BOARD_TYPES,
   CARD_CATEGORIES,
   useDeck,
   useDeckCardCount,
+  useDeckCardCountByBoard,
   useDeckCards,
   useDeckCardsByCategory,
   useDeckCommanders,
+  type BoardType,
   type CardCategory,
 } from "@/hooks/use-deck-cards-by-category";
 import { orpc, queryClient } from "@/utils/orpc";
 
+const deckDetailSearchSchema = z.object({
+  board: z.enum(["main", "sideboard", "maybeboard"]).optional().catch("main"),
+});
+
 export const Route = createFileRoute("/(app)/_authed/decks/$deckId")({
   component: DeckDetailPage,
+  validateSearch: deckDetailSearchSchema,
 });
 
 function DeckDetailPage() {
   const { deckId } = Route.useParams();
   const navigate = useNavigate();
+  const { board } = Route.useSearch();
+  const activeBoard = (board as BoardType) ?? BOARD_TYPES.MAIN;
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -53,9 +65,13 @@ function DeckDetailPage() {
 
   const { data: deck } = useDeck(deckId);
   const { data: cardCount } = useDeckCardCount(deckId);
-  const { data: allCards } = useDeckCards(deckId);
+  const { data: allCards } = useDeckCards(deckId, activeBoard);
   const { data: commanders } = useDeckCommanders(deckId);
   const isCommanderDeck = deck?.format === "commander";
+
+  const { data: mainCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.MAIN);
+  const { data: sideboardCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.SIDEBOARD);
+  const { data: consideringCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.CONSIDERING);
 
   const importMutation = useMutation({
     ...orpc.decks.importCards.mutationOptions(),
@@ -106,6 +122,7 @@ function DeckDetailPage() {
       deckId,
       csvContent: data.csvContent,
       format: data.format,
+      board: activeBoard,
     });
   };
 
@@ -120,6 +137,7 @@ function DeckDetailPage() {
         scryfallId: c.card.id,
         quantity: c.quantity,
       })),
+      board: activeBoard,
     });
   };
 
@@ -261,6 +279,28 @@ function DeckDetailPage() {
           </div>
         )}
 
+        {/* Board tabs */}
+        <div className="mb-6">
+          <Tabs
+            value={activeBoard}
+            onValueChange={(v) =>
+              navigate({
+                search: (prev) => ({ ...prev, board: v as BoardType }),
+              })
+            }
+          >
+            <TabsList>
+              <TabsTrigger value={BOARD_TYPES.MAIN}>Main Deck ({mainCount ?? 0})</TabsTrigger>
+              <TabsTrigger value={BOARD_TYPES.SIDEBOARD}>
+                Sideboard ({sideboardCount ?? 0})
+              </TabsTrigger>
+              <TabsTrigger value={BOARD_TYPES.CONSIDERING}>
+                Considering ({consideringCount ?? 0})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         {/* Cards section */}
         {allCards?.length === 0 ? (
           <EmptyCardsState
@@ -275,26 +315,30 @@ function DeckDetailPage() {
               <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
             </div>
             <div className="space-y-6">
-              {/* Commander section - shown prominently for commander decks */}
-              {isCommanderDeck && commanders && commanders.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-lg font-semibold text-primary">
-                    Commander{commanders.length > 1 ? "s" : ""} ({commanders.length})
-                  </h3>
-                  <MtgCardGrid view={viewMode}>
-                    {commanders.map((card) => (
-                      <MtgCardItem key={card.id} card={card} view={viewMode} />
-                    ))}
-                  </MtgCardGrid>
-                </div>
-              )}
+              {/* Commander section - shown prominently for commander decks on Main Deck tab */}
+              {isCommanderDeck &&
+                activeBoard === BOARD_TYPES.MAIN &&
+                commanders &&
+                commanders.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-lg font-semibold text-primary">
+                      Commander{commanders.length > 1 ? "s" : ""} ({commanders.length})
+                    </h3>
+                    <MtgCardGrid view={viewMode}>
+                      {commanders.map((card) => (
+                        <MtgCardItem key={card.id} card={card} view={viewMode} />
+                      ))}
+                    </MtgCardGrid>
+                  </div>
+                )}
               {CARD_CATEGORIES.map((category) => (
                 <DeckCardCategory
                   key={category}
                   deckId={deckId}
                   category={category}
                   view={viewMode}
-                  excludeCommanders={isCommanderDeck}
+                  excludeCommanders={isCommanderDeck && activeBoard === BOARD_TYPES.MAIN}
+                  activeBoard={activeBoard}
                 />
               ))}
             </div>
@@ -310,10 +354,17 @@ interface DeckCardCategoryProps {
   category: CardCategory;
   view: MtgCardViewMode;
   excludeCommanders?: boolean;
+  activeBoard: BoardType;
 }
 
-function DeckCardCategory({ deckId, category, view, excludeCommanders }: DeckCardCategoryProps) {
-  const { data: cards } = useDeckCardsByCategory(deckId, category);
+function DeckCardCategory({
+  deckId,
+  category,
+  view,
+  excludeCommanders,
+  activeBoard,
+}: DeckCardCategoryProps) {
+  const { data: cards } = useDeckCardsByCategory(deckId, category, activeBoard);
 
   // Filter out commanders if they're displayed separately
   const filteredCards = excludeCommanders ? cards?.filter((card) => !card.isCommander) : cards;
