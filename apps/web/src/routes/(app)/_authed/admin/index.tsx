@@ -82,6 +82,7 @@ type BulkDataType = "oracle_cards" | "unique_artwork" | "default_cards" | "all_c
 function ScryfallBulkImport() {
   const [selectedType, setSelectedType] = useState<BulkDataType>("default_cards");
   const [englishOnly, setEnglishOnly] = useState(true);
+  const [forceReprocess, setForceReprocess] = useState(false);
 
   // Fetch available bulk data options
   const { data: bulkOptions, isLoading: optionsLoading } = useQuery(
@@ -105,6 +106,7 @@ function ScryfallBulkImport() {
     importMutation.mutate({
       bulkDataType: selectedType,
       englishOnly,
+      forceReprocess,
     });
   };
 
@@ -161,6 +163,20 @@ function ScryfallBulkImport() {
                   (recommended - reduces ~2.5GB to ~500MB)
                 </span>
               )}
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="force-reprocess"
+              checked={forceReprocess}
+              onCheckedChange={(checked) => setForceReprocess(checked === true)}
+              disabled={importMutation.isPending}
+            />
+            <Label htmlFor="force-reprocess" className="cursor-pointer">
+              Override existing files
+              <span className="ml-1 text-muted-foreground">
+                (re-download and reprocess all data, ignoring cached files)
+              </span>
             </Label>
           </div>
         </div>

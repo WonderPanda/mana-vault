@@ -35,6 +35,11 @@ interface ScryfallCardResponse {
     };
   }>;
   scryfall_uri: string;
+  prices?: {
+    usd?: string | null;
+    usd_foil?: string | null;
+    usd_etched?: string | null;
+  };
 }
 
 /**
@@ -130,6 +135,11 @@ export async function ensureScryfallCard(
       colorIdentity: cardData.color_identity ? JSON.stringify(cardData.color_identity) : null,
       imageUri: getImageUri(cardData),
       scryfallUri: cardData.scryfall_uri,
+      priceUsd: cardData.prices?.usd ? Number.parseFloat(cardData.prices.usd) : null,
+      priceUsdFoil: cardData.prices?.usd_foil ? Number.parseFloat(cardData.prices.usd_foil) : null,
+      priceUsdEtched: cardData.prices?.usd_etched
+        ? Number.parseFloat(cardData.prices.usd_etched)
+        : null,
       dataJson: JSON.stringify(cardData),
     });
 

@@ -23,6 +23,9 @@ export interface ScryfallCardReplicationDoc {
   colorIdentity: string | null;
   imageUri: string | null;
   scryfallUri: string | null;
+  priceUsd: number | null;
+  priceUsdFoil: number | null;
+  priceUsdEtched: number | null;
   dataJson: string | null;
   createdAt: number;
   updatedAt: number;
@@ -83,6 +86,9 @@ export function toScryfallCardReplicationDoc(
     colorIdentity: string | null;
     imageUri: string | null;
     scryfallUri: string | null;
+    priceUsd: number | null;
+    priceUsdFoil: number | null;
+    priceUsdEtched: number | null;
     dataJson: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -105,6 +111,9 @@ export function toScryfallCardReplicationDoc(
     colorIdentity: doc.colorIdentity,
     imageUri: doc.imageUri,
     scryfallUri: doc.scryfallUri,
+    priceUsd: doc.priceUsd,
+    priceUsdFoil: doc.priceUsdFoil,
+    priceUsdEtched: doc.priceUsdEtched,
     dataJson: doc.dataJson,
     createdAt: doc.createdAt.getTime(),
     updatedAt: doc.updatedAt.getTime(),

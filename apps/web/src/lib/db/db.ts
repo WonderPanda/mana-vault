@@ -18,7 +18,7 @@ addRxPlugin(RxDBMigrationSchemaPlugin);
 // =============================================================================
 
 const scryfallCardSchema: RxJsonSchema<ScryfallCardDoc> = {
-  version: 0,
+  version: 1,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -37,6 +37,9 @@ const scryfallCardSchema: RxJsonSchema<ScryfallCardDoc> = {
     colorIdentity: { type: ["string", "null"] }, // JSON array as string
     imageUri: { type: ["string", "null"] },
     scryfallUri: { type: ["string", "null"] },
+    priceUsd: { type: ["number", "null"] },
+    priceUsdFoil: { type: ["number", "null"] },
+    priceUsdEtched: { type: ["number", "null"] },
     dataJson: { type: ["string", "null"] }, // Full Scryfall JSON for additional fields
     createdAt: { type: "number" },
     updatedAt: { type: "number" },
@@ -221,6 +224,9 @@ export interface ScryfallCardDoc {
   colorIdentity: string | null;
   imageUri: string | null;
   scryfallUri: string | null;
+  priceUsd: number | null;
+  priceUsdFoil: number | null;
+  priceUsdEtched: number | null;
   dataJson: string | null;
   createdAt: number;
   updatedAt: number;
@@ -333,6 +339,14 @@ async function initializeDb() {
   await database.addCollections({
     scryfall_cards: {
       schema: scryfallCardSchema,
+      migrationStrategies: {
+        1: (oldDoc) => ({
+          ...oldDoc,
+          priceUsd: oldDoc.priceUsd ?? null,
+          priceUsdFoil: oldDoc.priceUsdFoil ?? null,
+          priceUsdEtched: oldDoc.priceUsdEtched ?? null,
+        }),
+      },
     },
     decks: {
       schema: deckSchema,

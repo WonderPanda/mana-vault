@@ -48,6 +48,11 @@ interface ScryfallCardResponse {
     };
   }>;
   scryfall_uri?: string;
+  prices?: {
+    usd?: string | null;
+    usd_foil?: string | null;
+    usd_etched?: string | null;
+  };
   lang?: string;
 }
 
@@ -84,6 +89,9 @@ function transformCardForInsert(card: ScryfallCardResponse): ScryfallCardInsertD
     color_identity: card.color_identity ? JSON.stringify(card.color_identity) : null,
     image_uri: getCardImageUri(card),
     scryfall_uri: card.scryfall_uri ?? null,
+    price_usd: card.prices?.usd ? Number.parseFloat(card.prices.usd) : null,
+    price_usd_foil: card.prices?.usd_foil ? Number.parseFloat(card.prices.usd_foil) : null,
+    price_usd_etched: card.prices?.usd_etched ? Number.parseFloat(card.prices.usd_etched) : null,
     data_json: JSON.stringify(card),
   };
 }
@@ -96,7 +104,7 @@ async function insertChunk(cards: ScryfallCardInsertData[]): Promise<number> {
   const jsonData = JSON.stringify(cards);
 
   await db.run(sql`
-    INSERT OR IGNORE INTO ${scryfallCard} (
+    INSERT OR REPLACE INTO ${scryfallCard} (
       id,
       oracle_id,
       name,
@@ -112,6 +120,9 @@ async function insertChunk(cards: ScryfallCardInsertData[]): Promise<number> {
       color_identity,
       image_uri,
       scryfall_uri,
+      price_usd,
+      price_usd_foil,
+      price_usd_etched,
       data_json,
       created_at,
       updated_at
@@ -132,8 +143,14 @@ async function insertChunk(cards: ScryfallCardInsertData[]): Promise<number> {
       json_extract(value, '$.color_identity'),
       json_extract(value, '$.image_uri'),
       json_extract(value, '$.scryfall_uri'),
+      json_extract(value, '$.price_usd'),
+      json_extract(value, '$.price_usd_foil'),
+      json_extract(value, '$.price_usd_etched'),
       json_extract(value, '$.data_json'),
-      cast(unixepoch('subsecond') * 1000 as integer),
+      COALESCE(
+        (SELECT created_at FROM ${scryfallCard} sc WHERE sc.id = json_extract(value, '$.id')),
+        cast(unixepoch('subsecond') * 1000 as integer)
+      ),
       cast(unixepoch('subsecond') * 1000 as integer)
     FROM json_each(${jsonData})
   `);
@@ -161,9 +178,17 @@ export async function handleScryfallImport(
   r2Bucket: R2Bucket,
   insertQueue: Queue<ScryfallInsertBatchMessage>,
 ): Promise<void> {
-  const { bulkDataType, englishOnly, downloadUri } = message;
-  const bulkDataKey = `bulk-data/${bulkDataType}.json`;
-  const batchPrefix = `batches/${bulkDataType}`;
+  const { bulkDataType, englishOnly, downloadUri, forceReprocess } = message;
+  // Derive a unique source name from the download URI filename
+  // e.g. "https://data.scryfall.io/default-cards/default-cards-20260129100712.json"
+  //    → "default-cards-20260129100712"
+  const sourceFileName =
+    downloadUri
+      .split("/")
+      .pop()
+      ?.replace(/\.json$/, "") ?? bulkDataType;
+  const bulkDataKey = `bulk-data/${sourceFileName}.json`;
+  const batchPrefix = `batches/${sourceFileName}`;
 
   console.log(`[Scryfall Parse] Starting parse job for ${bulkDataType}...`);
   console.log(`[Scryfall Parse] Download URI: ${downloadUri}`);
@@ -173,7 +198,7 @@ export async function handleScryfallImport(
 
   // Step 1: Check if file already exists in R2, otherwise download
   let downloadMs = 0;
-  const existingObject = await r2Bucket.head(bulkDataKey);
+  const existingObject = forceReprocess ? null : await r2Bucket.head(bulkDataKey);
 
   if (existingObject) {
     console.log(
@@ -256,7 +281,7 @@ export async function handleScryfallImport(
       const r2Key = `${batchPrefix}/batch-${batchNumber.toString().padStart(5, "0")}.json`;
 
       // Check if batch file already exists in R2 (idempotency for parse stage)
-      const existingBatch = await r2Bucket.head(r2Key);
+      const existingBatch = forceReprocess ? null : await r2Bucket.head(r2Key);
       if (existingBatch) {
         console.log(
           `[Scryfall Parse] Batch ${batchNumber} already exists in R2 (${(existingBatch.size / 1024).toFixed(1)}KB), skipping upload`,
@@ -278,6 +303,7 @@ export async function handleScryfallImport(
         type: "scryfall-insert-batch",
         batchNumber,
         r2Key,
+        forceReprocess,
       });
       console.log(`[Scryfall Parse] Queue message sent for batch ${batchNumber}`);
 
@@ -291,7 +317,7 @@ export async function handleScryfallImport(
     const r2Key = `${batchPrefix}/batch-${batchNumber.toString().padStart(5, "0")}.json`;
 
     // Check if batch file already exists in R2 (idempotency for parse stage)
-    const existingBatch = await r2Bucket.head(r2Key);
+    const existingBatch = forceReprocess ? null : await r2Bucket.head(r2Key);
     if (existingBatch) {
       console.log(
         `[Scryfall Parse] Final batch ${batchNumber} already exists in R2 (${(existingBatch.size / 1024).toFixed(1)}KB), skipping upload`,
@@ -313,6 +339,7 @@ export async function handleScryfallImport(
       type: "scryfall-insert-batch",
       batchNumber,
       r2Key,
+      forceReprocess,
     });
     console.log(`[Scryfall Parse] Queue message sent for final batch ${batchNumber}`);
   }
@@ -353,21 +380,23 @@ export async function handleScryfallInsertBatch(
   message: ScryfallInsertBatchMessage,
   r2Bucket: R2Bucket,
 ): Promise<void> {
-  const { batchNumber, r2Key } = message;
+  const { batchNumber, r2Key, forceReprocess } = message;
   const startTime = Date.now();
 
   console.log(`[Scryfall Insert] Processing batch ${batchNumber} from ${r2Key}...`);
 
   // Check if this chunk has already been processed (idempotency check)
-  const existingChunk = await db.query.scryfallImportChunk.findFirst({
-    where: eq(scryfallImportChunk.r2Key, r2Key),
-  });
+  if (!forceReprocess) {
+    const existingChunk = await db.query.scryfallImportChunk.findFirst({
+      where: eq(scryfallImportChunk.r2Key, r2Key),
+    });
 
-  if (existingChunk) {
-    console.log(
-      `[Scryfall Insert] Batch ${batchNumber} already processed (${existingChunk.cardsInserted} cards at ${existingChunk.completedAt.toISOString()}). Skipping.`,
-    );
-    return;
+    if (existingChunk) {
+      console.log(
+        `[Scryfall Insert] Batch ${batchNumber} already processed (${existingChunk.cardsInserted} cards at ${existingChunk.completedAt.toISOString()}). Skipping.`,
+      );
+      return;
+    }
   }
 
   console.log(
@@ -395,6 +424,9 @@ export async function handleScryfallInsertBatch(
 
   // Mark chunk as completed in the database
   const completedAt = new Date();
+  if (forceReprocess) {
+    await db.delete(scryfallImportChunk).where(eq(scryfallImportChunk.r2Key, r2Key));
+  }
   await db.insert(scryfallImportChunk).values({
     r2Key,
     cardsInserted: totalInserted,

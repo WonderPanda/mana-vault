@@ -51,6 +51,9 @@ export const scryfallCard = sqliteTable(
     colorIdentity: text("color_identity"), // JSON array
     imageUri: text("image_uri"),
     scryfallUri: text("scryfall_uri"),
+    priceUsd: real("price_usd"),
+    priceUsdFoil: real("price_usd_foil"),
+    priceUsdEtched: real("price_usd_etched"),
     dataJson: text("data_json"), // Full Scryfall JSON for additional fields
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)

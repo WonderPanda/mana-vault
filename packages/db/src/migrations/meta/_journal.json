@@ -43,6 +43,13 @@
       "when": 1769655154524,
       "tag": "0005_true_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1769711955916,
+      "tag": "0006_pretty_silverclaw",
+      "breakpoints": true
     }
   ]
 }

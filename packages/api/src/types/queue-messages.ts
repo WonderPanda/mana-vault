@@ -12,6 +12,7 @@ export type ScryfallImportMessage = {
   bulkDataType: "oracle_cards" | "unique_artwork" | "default_cards" | "all_cards";
   englishOnly: boolean;
   downloadUri: string;
+  forceReprocess: boolean;
 };
 
 /**
@@ -33,6 +34,9 @@ export type ScryfallCardInsertData = {
   color_identity: string | null;
   image_uri: string | null;
   scryfall_uri: string | null;
+  price_usd: number | null;
+  price_usd_foil: number | null;
+  price_usd_etched: number | null;
   data_json: string;
 };
 
@@ -44,4 +48,5 @@ export type ScryfallInsertBatchMessage = {
   type: "scryfall-insert-batch";
   batchNumber: number;
   r2Key: string;
+  forceReprocess: boolean;
 };

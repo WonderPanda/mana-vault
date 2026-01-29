@@ -109,6 +109,8 @@ export const adminRouter = {
         bulkDataType: z.enum(["oracle_cards", "unique_artwork", "default_cards", "all_cards"]),
         /** Only include English cards (only applicable for all_cards) */
         englishOnly: z.boolean().default(true),
+        /** Force reprocess: skip R2 cache and idempotency checks */
+        forceReprocess: z.boolean().default(false),
       }),
     )
     .handler(async ({ context, input }) => {
@@ -141,6 +143,7 @@ export const adminRouter = {
         bulkDataType: input.bulkDataType,
         englishOnly: input.englishOnly,
         downloadUri: bulkData.download_uri,
+        forceReprocess: input.forceReprocess,
       });
 
       console.log(`[Admin] Queued Scryfall import job: ${input.bulkDataType}`);
