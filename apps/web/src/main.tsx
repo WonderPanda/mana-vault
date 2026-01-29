@@ -1,11 +1,18 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
+import { registerSW } from "virtual:pwa-register";
 import "@fontsource/inter";
 
 import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
+
+registerSW({
+  onNeedRefresh() {
+    window.location.reload();
+  },
+});
 
 const router = createRouter({
   routeTree,

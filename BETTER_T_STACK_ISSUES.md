@@ -55,3 +55,63 @@ The server env exports from `cloudflare:workers`, a virtual module only availabl
   }
 }
 ```
+
+---
+
+## 3. PWA service worker serves stale content after deploys
+
+**Symptom:** After deploying frontend changes, users still see the old version until they empty cache and hard reload. The default `vite-plugin-pwa` configuration precaches all build assets but doesn't properly invalidate or reload when a new service worker activates.
+
+**Cause:** The template configures `VitePWA` with `registerType: "autoUpdate"` but provides no Workbox options and no service worker registration in app code. The default Workbox precaching strategy caches everything aggressively, and without `skipWaiting` / `clientsClaim`, the new service worker waits for all tabs to close before activating. Even when it does activate, there's no mechanism to reload the page with fresh content.
+
+Additionally, `workbox-window` is not included as a dependency, so the dev server fails with:
+
+```
+Failed to resolve import "workbox-window" from "/@vite-plugin-pwa/virtual:pwa-register"
+```
+
+**Fix:**
+
+1. Install `workbox-window`:
+
+   ```bash
+   bun add workbox-window
+   ```
+
+2. Add Workbox options to the PWA plugin in `apps/web/vite.config.ts`:
+
+   ```typescript
+   VitePWA({
+     registerType: "autoUpdate",
+     manifest: { /* ... */ },
+     workbox: {
+       skipWaiting: true,
+       clientsClaim: true,
+       cleanupOutdatedCaches: true,
+       navigateFallback: "/index.html",
+     },
+     // ...
+   })
+   ```
+
+3. Register the service worker in `apps/web/src/main.tsx` to auto-reload on updates:
+
+   ```typescript
+   import { registerSW } from "virtual:pwa-register";
+
+   registerSW({
+     onNeedRefresh() {
+       window.location.reload();
+     },
+   });
+   ```
+
+4. Add `vite-plugin-pwa/client` to `apps/web/tsconfig.json` for TypeScript support:
+
+   ```json
+   {
+     "compilerOptions": {
+       "types": ["vite/client", "vite-plugin-pwa/client", "@cloudflare/workers-types"]
+     }
+   }
+   ```

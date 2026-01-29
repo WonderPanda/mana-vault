@@ -15,7 +15,8 @@
       "Bash(agent-browser screenshot:*)",
       "Bash(agent-browser console:*)",
       "Bash(agent-browser evaluate:*)",
-      "Bash(agent-browser navigate:*)"
+      "Bash(agent-browser navigate:*)",
+      "Bash(ls:*)"
     ]
   }
 }

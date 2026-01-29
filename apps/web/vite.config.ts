@@ -19,6 +19,12 @@ export default defineConfig({
         theme_color: "#0c0c0c",
       },
       pwaAssets: { disabled: false, config: true },
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        navigateFallback: "/index.html",
+      },
       devOptions: { enabled: true },
     }),
   ],
