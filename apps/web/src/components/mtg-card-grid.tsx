@@ -291,8 +291,8 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
   const hasDetails = condition || isFoil || language || ownershipStatus;
 
   return (
-    <Card className={cn("overflow-hidden", onClick && "cursor-pointer")} onClick={onClick}>
-      <div className="relative">
+    <Card className={cn("gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", onClick && "cursor-pointer")} onClick={onClick}>
+      <div className="relative overflow-hidden rounded-lg">
         {scryfallCard.imageUri ? (
           <img
             src={scryfallCard.imageUri}
@@ -337,7 +337,7 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
         })()}
         {/* Desktop: badges for condition, foil, language, quantity */}
         {hasDetails && (
-          <div className="hidden flex-wrap gap-1 sm:mt-1 sm:flex">
+          <div className="hidden flex-wrap gap-1 sm:flex">
             {isFoil && (
               <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
                 Foil
