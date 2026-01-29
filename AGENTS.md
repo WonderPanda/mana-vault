@@ -75,7 +75,8 @@ bun run destroy          # Destroy Cloudflare resources
 - **Linter**: oxlint (configured in `.oxlintrc.json`)
 - **Formatter**: oxfmt
 - Run both: `bun run check`
-- **DO NOT run formatting commands manually** (`bun format`, `bunx oxfmt`, etc.). Pre-commit hooks via Lefthook automatically run `oxlint --fix` and `oxfmt --write` on all staged files when you commit. There is no reason to run formatting yourself.
+- Run `bun run check` to lint and catch errors you should fix as part of your changes
+- **DO NOT run formatting commands manually** (`bun format`, `bunx oxfmt`, etc.). Pre-commit hooks via Lefthook automatically format all staged files when you commit. There is no reason to run formatting yourself.
 
 ### Testing
 
