@@ -6,7 +6,16 @@
       "Bash(find:*)",
       "Bash(bun format:*)",
       "Bash(bun run check:*)",
-      "Bash(bun run format:*)"
+      "Bash(bun run format:*)",
+      "Bash(agent-browser open:*)",
+      "Bash(agent-browser wait:*)",
+      "Bash(agent-browser snapshot:*)",
+      "Bash(agent-browser click:*)",
+      "Bash(agent-browser fill:*)",
+      "Bash(agent-browser screenshot:*)",
+      "Bash(agent-browser console:*)",
+      "Bash(agent-browser evaluate:*)",
+      "Bash(agent-browser navigate:*)"
     ]
   }
 }

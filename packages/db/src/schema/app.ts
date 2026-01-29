@@ -412,6 +412,8 @@ export const virtualList = sqliteTable(
     sourceType: text("source_type"), // gift, purchase, trade, other
     sourceName: text("source_name"), // Who/where it came from
     snapshotDate: integer("snapshot_date", { mode: "timestamp_ms" }),
+    isPublic: integer("is_public", { mode: "boolean" }).default(false).notNull(),
+    slug: text("slug"), // URL-friendly slug for public lists (e.g., "my-awesome-deck"), unique per user
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
@@ -420,7 +422,10 @@ export const virtualList = sqliteTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("virtual_list_user_id_idx").on(table.userId)],
+  (table) => [
+    index("virtual_list_user_id_idx").on(table.userId),
+    unique("virtual_list_user_slug_unique").on(table.userId, table.slug),
+  ],
 );
 
 export const virtualListCard = sqliteTable(

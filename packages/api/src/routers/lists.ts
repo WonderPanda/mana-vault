@@ -4,11 +4,49 @@ import { scryfallCard, virtualList, virtualListCard } from "@mana-vault/db/schem
 import { and, asc, eq, sql } from "drizzle-orm";
 import z from "zod";
 
-import { protectedProcedure } from "../index";
+import { protectedProcedure, publicProcedure } from "../index";
 import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
 import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
+
+/**
+ * Generate a URL-friendly slug from a string
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "") // Remove non-word chars (except spaces and hyphens)
+    .replace(/[\s_-]+/g, "-") // Replace spaces, underscores, and multiple hyphens with single hyphen
+    .replace(/^-+|-+$/g, ""); // Remove leading and trailing hyphens
+}
+
+/**
+ * Generate a unique slug for a list
+ */
+async function generateUniqueSlug(name: string, userId: string): Promise<string> {
+  const baseSlug = slugify(name);
+  let slug = baseSlug;
+  let counter = 1;
+
+  // Check if slug exists for this user
+  while (true) {
+    const [existing] = await db
+      .select({ id: virtualList.id })
+      .from(virtualList)
+      .where(and(eq(virtualList.userId, userId), eq(virtualList.slug, slug)))
+      .limit(1);
+
+    if (!existing) {
+      return slug;
+    }
+
+    // Append counter if slug exists
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+}
 
 /**
  * Check if an error is a SQLite foreign key constraint violation
@@ -70,12 +108,15 @@ export const listsRouter = {
       const [list] = await db
         .select({
           id: virtualList.id,
+          userId: virtualList.userId,
           name: virtualList.name,
           description: virtualList.description,
           listType: virtualList.listType,
           sourceType: virtualList.sourceType,
           sourceName: virtualList.sourceName,
           snapshotDate: virtualList.snapshotDate,
+          isPublic: virtualList.isPublic,
+          slug: virtualList.slug,
           createdAt: virtualList.createdAt,
           updatedAt: virtualList.updatedAt,
           cardCount: sql<number>`count(${virtualListCard.id})`.as("card_count"),
@@ -106,6 +147,9 @@ export const listsRouter = {
     .handler(async ({ context, input }) => {
       const userId = context.session.user.id;
 
+      // Generate a unique slug from the list name
+      const slug = await generateUniqueSlug(input.name, userId);
+
       const [list] = await db
         .insert(virtualList)
         .values({
@@ -115,10 +159,68 @@ export const listsRouter = {
           listType: input.listType,
           sourceType: input.sourceType ?? null,
           sourceName: input.sourceName ?? null,
+          slug,
         })
         .returning();
 
       return list;
+    }),
+
+  // Update a virtual list (name, description, isPublic, slug)
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional().nullable(),
+        isPublic: z.boolean().optional(),
+        slug: z.string().min(1).max(100).optional(),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      // Verify the list exists and belongs to the user
+      const [existingList] = await db
+        .select({ id: virtualList.id, name: virtualList.name, slug: virtualList.slug })
+        .from(virtualList)
+        .where(and(eq(virtualList.id, input.id), eq(virtualList.userId, userId)));
+
+      if (!existingList) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found" });
+      }
+
+      // If making the list public and it doesn't have a slug, generate one
+      let slugToUse = input.slug;
+      if (input.isPublic === true && !existingList.slug && !input.slug) {
+        slugToUse = await generateUniqueSlug(existingList.name, userId);
+      }
+
+      // If updating slug, ensure it's unique for this user
+      if (slugToUse && slugToUse !== existingList.slug) {
+        const [slugConflict] = await db
+          .select({ id: virtualList.id })
+          .from(virtualList)
+          .where(and(eq(virtualList.userId, userId), eq(virtualList.slug, slugToUse)))
+          .limit(1);
+
+        if (slugConflict) {
+          throw new ORPCError("CONFLICT", { message: "This slug is already in use" });
+        }
+      }
+
+      const [updatedList] = await db
+        .update(virtualList)
+        .set({
+          ...(input.name !== undefined && { name: input.name }),
+          ...(input.description !== undefined && { description: input.description }),
+          ...(input.isPublic !== undefined && { isPublic: input.isPublic }),
+          ...(slugToUse !== undefined && { slug: slugToUse }),
+        })
+        .where(eq(virtualList.id, input.id))
+        .returning();
+
+      return updatedList;
     }),
 
   /**
@@ -449,5 +551,127 @@ export const listsRouter = {
             ? `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""}. ${skippedCount} card${skippedCount !== 1 ? "s" : ""} could not be found.`
             : `Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""} to the list.`,
       };
+    }),
+
+  /**
+   * Get a public list by userId and slug (unauthenticated endpoint)
+   */
+  getPublicList: publicProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        slug: z.string(),
+      }),
+    )
+    .handler(async ({ input }) => {
+      const [list] = await db
+        .select({
+          id: virtualList.id,
+          userId: virtualList.userId,
+          name: virtualList.name,
+          description: virtualList.description,
+          listType: virtualList.listType,
+          sourceType: virtualList.sourceType,
+          sourceName: virtualList.sourceName,
+          snapshotDate: virtualList.snapshotDate,
+          isPublic: virtualList.isPublic,
+          slug: virtualList.slug,
+          createdAt: virtualList.createdAt,
+          updatedAt: virtualList.updatedAt,
+          cardCount: sql<number>`count(${virtualListCard.id})`.as("card_count"),
+        })
+        .from(virtualList)
+        .leftJoin(virtualListCard, eq(virtualListCard.virtualListId, virtualList.id))
+        .where(
+          and(
+            eq(virtualList.userId, input.userId),
+            eq(virtualList.slug, input.slug),
+            eq(virtualList.isPublic, true),
+          ),
+        )
+        .groupBy(virtualList.id);
+
+      if (!list) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found or not public" });
+      }
+
+      return list;
+    }),
+
+  /**
+   * Get cards from a public list (unauthenticated endpoint)
+   */
+  getPublicListCards: publicProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        slug: z.string(),
+      }),
+    )
+    .handler(async ({ input }) => {
+      // First verify the list exists and is public
+      const [list] = await db
+        .select({ id: virtualList.id })
+        .from(virtualList)
+        .where(
+          and(
+            eq(virtualList.userId, input.userId),
+            eq(virtualList.slug, input.slug),
+            eq(virtualList.isPublic, true),
+          ),
+        );
+
+      if (!list) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found or not public" });
+      }
+
+      // Get all cards in the list with scryfall data
+      const cards = await db
+        .select({
+          id: virtualListCard.id,
+          notes: virtualListCard.notes,
+          quantity: virtualListCard.quantity,
+          condition: virtualListCard.condition,
+          isFoil: virtualListCard.isFoil,
+          language: virtualListCard.language,
+          createdAt: virtualListCard.createdAt,
+          // Scryfall data from direct reference
+          scryfallCard: {
+            id: scryfallCard.id,
+            name: scryfallCard.name,
+            setCode: scryfallCard.setCode,
+            setName: scryfallCard.setName,
+            collectorNumber: scryfallCard.collectorNumber,
+            rarity: scryfallCard.rarity,
+            imageUri: scryfallCard.imageUri,
+            manaCost: scryfallCard.manaCost,
+            typeLine: scryfallCard.typeLine,
+          },
+        })
+        .from(virtualListCard)
+        .innerJoin(scryfallCard, eq(virtualListCard.scryfallCardId, scryfallCard.id))
+        .where(eq(virtualListCard.virtualListId, list.id))
+        .orderBy(asc(scryfallCard.name));
+
+      return cards.map((card) => ({
+        id: card.id,
+        notes: card.notes,
+        quantity: card.quantity,
+        condition: card.condition,
+        isFoil: card.isFoil,
+        language: card.language,
+        createdAt: card.createdAt,
+        scryfallCard: {
+          id: card.scryfallCard.id,
+          name: card.scryfallCard.name,
+          setCode: card.scryfallCard.setCode,
+          setName: card.scryfallCard.setName,
+          collectorNumber: card.scryfallCard.collectorNumber,
+          rarity: card.scryfallCard.rarity,
+          imageUri: card.scryfallCard.imageUri,
+          manaCost: card.scryfallCard.manaCost,
+          typeLine: card.scryfallCard.typeLine,
+        },
+      }));
     }),
 };

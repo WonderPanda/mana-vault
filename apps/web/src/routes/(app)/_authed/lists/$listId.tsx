@@ -2,12 +2,16 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Check,
+  Copy,
   Gift,
+  Globe,
   Heart,
   ListChecks,
   MoreHorizontal,
   Plus,
   Search,
+  Share2,
   ShoppingCart,
   Sparkles,
   Trash2,
@@ -36,8 +40,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/lists/$listId")({
@@ -62,6 +69,7 @@ function ListDetailPage() {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
+  const [copySuccess, setCopySuccess] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const importMutation = useMutation({
@@ -112,6 +120,22 @@ function ListDetailPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    ...orpc.lists.update.mutationOptions(),
+    onSuccess: () => {
+      toast.success("List updated");
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.get.queryOptions({ input: { id: listId } }).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.list.queryOptions().queryKey,
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to update list");
+    },
+  });
+
   const handleImport = (data: CardImportData) => {
     importMutation.mutate({
       listId,
@@ -132,6 +156,23 @@ function ListDetailPage() {
         quantity: c.quantity,
       })),
     });
+  };
+
+  const handleTogglePublic = (isPublic: boolean) => {
+    updateMutation.mutate({
+      id: listId,
+      isPublic,
+    });
+  };
+
+  const handleCopyLink = async () => {
+    if (!list.slug) return;
+
+    const publicUrl = `${window.location.origin}/${list.userId}/list/${list.slug}`;
+    await navigator.clipboard.writeText(publicUrl);
+    setCopySuccess(true);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   const TypeIcon = getListTypeIcon(list.listType, list.sourceType);
@@ -161,6 +202,21 @@ function ListDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {list.isPublic && list.slug && (
+            <Button variant="outline" onClick={handleCopyLink} className="gap-2">
+              {copySuccess ? (
+                <>
+                  <Check className="h-4 w-4 text-green-500" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-4 w-4" />
+                  Share
+                </>
+              )}
+            </Button>
+          )}
           <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
             <PopoverTrigger
               render={
@@ -263,6 +319,50 @@ function ListDetailPage() {
             <span className="font-medium">Created:</span>{" "}
             {new Date(list.createdAt).toLocaleDateString()}
           </div>
+        </div>
+
+        {/* Public sharing section */}
+        <div className="mb-6 rounded-lg border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Globe className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <div className="text-base font-medium">Public List</div>
+                <p className="text-sm text-muted-foreground">
+                  Allow anyone with the link to view this list
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="public-toggle"
+              checked={list.isPublic}
+              onCheckedChange={handleTogglePublic}
+              disabled={updateMutation.isPending}
+            />
+          </div>
+
+          {list.isPublic && list.slug && (
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="public-url" className="text-sm font-medium">
+                Shareable Link
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="public-url"
+                  readOnly
+                  value={`${window.location.origin}/${list.userId}/list/${list.slug}`}
+                  className="font-mono text-sm"
+                />
+                <Button variant="outline" size="icon" onClick={handleCopyLink} className="shrink-0">
+                  {copySuccess ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cards section */}
