@@ -1,4 +1,4 @@
-import { eq, useLiveQuery } from "@tanstack/react-db";
+import { eq, useLiveQuery, useLiveSuspenseQuery } from "@tanstack/react-db";
 
 import { useDbCollections } from "@/lib/db/db-context";
 import type { CollectionCardDoc, CollectionCardLocationDoc, ScryfallCardDoc } from "@/lib/db/db";
@@ -89,7 +89,7 @@ export function useCollectionCardsByContainer(containerId: string) {
   const { collectionCardCollection, collectionCardLocationCollection, scryfallCardCollection } =
     useDbCollections();
 
-  return useLiveQuery(
+  return useLiveSuspenseQuery(
     (q) =>
       q
         .from({ location: collectionCardLocationCollection })
@@ -101,7 +101,11 @@ export function useCollectionCardsByContainer(containerId: string) {
           eq(collectionCard.scryfallCardId, card.id),
         )
         .where(({ collectionCard }) => eq(collectionCard.status, "owned"))
-        .orderBy(({ card }) => card.name, "asc")
+        .orderBy(
+          ({ collectionCard, card }) =>
+            collectionCard.isFoil ? (card.priceUsdFoil ?? 0) : (card.priceUsd ?? 0),
+          "desc",
+        )
         .select(({ collectionCard, card, location }) => ({
           ...collectionCard,
           scryfallCard: card,

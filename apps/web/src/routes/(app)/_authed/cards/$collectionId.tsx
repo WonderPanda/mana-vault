@@ -238,29 +238,23 @@ function CollectionDetailPage() {
             <VirtualizedMtgCardGrid
               view={viewMode}
               scrollElementRef={scrollContainerRef}
-              cards={cards
-                .map((card) => ({
-                  id: card.id,
-                  scryfallCard: {
-                    name: card.scryfallCard.name,
-                    setCode: card.scryfallCard.setCode,
-                    setName: card.scryfallCard.setName,
-                    collectorNumber: card.scryfallCard.collectorNumber,
-                    imageUri: card.scryfallCard.imageUri,
-                    manaCost: card.scryfallCard.manaCost,
-                    priceUsd: card.scryfallCard.priceUsd,
-                    priceUsdFoil: card.scryfallCard.priceUsdFoil,
-                  },
-                  condition: card.condition,
-                  isFoil: card.isFoil,
-                  language: card.language,
-                  isInCollection: true,
-                }))
-                .sort((a, b) => {
-                  const priceA = a.isFoil ? a.scryfallCard.priceUsdFoil : a.scryfallCard.priceUsd;
-                  const priceB = b.isFoil ? b.scryfallCard.priceUsdFoil : b.scryfallCard.priceUsd;
-                  return (priceB ?? 0) - (priceA ?? 0);
-                })}
+              cards={cards.map((card) => ({
+                id: card.id,
+                scryfallCard: {
+                  name: card.scryfallCard.name,
+                  setCode: card.scryfallCard.setCode,
+                  setName: card.scryfallCard.setName,
+                  collectorNumber: card.scryfallCard.collectorNumber,
+                  imageUri: card.scryfallCard.imageUri,
+                  manaCost: card.scryfallCard.manaCost,
+                  priceUsd: card.scryfallCard.priceUsd,
+                  priceUsdFoil: card.scryfallCard.priceUsdFoil,
+                },
+                condition: card.condition,
+                isFoil: card.isFoil,
+                language: card.language,
+                isInCollection: true,
+              }))}
             />
           </>
         )}

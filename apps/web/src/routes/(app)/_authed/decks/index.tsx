@@ -27,7 +27,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc, queryClient } from "@/utils/orpc";
-import { eq, sum, useLiveQuery } from "@tanstack/react-db";
+import { eq, sum, useLiveQuery, useLiveSuspenseQuery } from "@tanstack/react-db";
 import { useDbCollections } from "@/lib/db/db-context";
 import type { ScryfallCardDoc } from "@/lib/db/db";
 
@@ -45,8 +45,8 @@ function DecksPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // TODO: Could we do this as a join?
-  const { data: decks } = useLiveQuery((q) => q.from({ deck: deckCollection }));
-  const { data: deckCardCount } = useLiveQuery((q) =>
+  const { data: decks } = useLiveSuspenseQuery((q) => q.from({ deck: deckCollection }));
+  const { data: deckCardCount } = useLiveSuspenseQuery((q) =>
     q
       .from({ deckCard: deckCardCollection })
       .groupBy(({ deckCard }) => deckCard.deckId)
@@ -57,7 +57,7 @@ function DecksPage() {
   );
 
   // Query for commanders (cards with isCommander = true) with their scryfall data
-  const { data: commanderCards } = useLiveQuery((q) =>
+  const { data: commanderCards } = useLiveSuspenseQuery((q) =>
     q
       .from({ deckCard: deckCardCollection })
       .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>

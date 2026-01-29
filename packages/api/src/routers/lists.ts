@@ -412,7 +412,10 @@ export const listsRouter = {
         .from(virtualListCard)
         .innerJoin(scryfallCard, eq(virtualListCard.scryfallCardId, scryfallCard.id))
         .where(eq(virtualListCard.virtualListId, input.listId))
-        .orderBy(desc(scryfallCard.priceUsd), asc(scryfallCard.name));
+        .orderBy(
+          desc(sql`CASE WHEN ${virtualListCard.isFoil} = 1 THEN ${scryfallCard.priceUsdFoil} ELSE ${scryfallCard.priceUsd} END`),
+          asc(scryfallCard.name),
+        );
 
       return cards.map((card) => ({
         id: card.id,
@@ -657,7 +660,10 @@ export const listsRouter = {
         .from(virtualListCard)
         .innerJoin(scryfallCard, eq(virtualListCard.scryfallCardId, scryfallCard.id))
         .where(eq(virtualListCard.virtualListId, list.id))
-        .orderBy(desc(scryfallCard.priceUsd), asc(scryfallCard.name));
+        .orderBy(
+          desc(sql`CASE WHEN ${virtualListCard.isFoil} = 1 THEN ${scryfallCard.priceUsdFoil} ELSE ${scryfallCard.priceUsd} END`),
+          asc(scryfallCard.name),
+        );
 
       return cards.map((card) => ({
         id: card.id,

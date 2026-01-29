@@ -136,7 +136,12 @@ function PublicListPage() {
                 isFoil: card.isFoil,
                 language: card.language,
                 quantity: card.quantity,
-              }))}
+              }))
+              .sort((a, b) => {
+                const priceA = a.isFoil ? a.scryfallCard.priceUsdFoil : a.scryfallCard.priceUsd;
+                const priceB = b.isFoil ? b.scryfallCard.priceUsdFoil : b.scryfallCard.priceUsd;
+                return (priceB ?? 0) - (priceA ?? 0);
+              })}
             />
           </>
         )}

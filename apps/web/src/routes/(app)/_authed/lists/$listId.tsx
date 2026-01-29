@@ -40,8 +40,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -340,7 +338,6 @@ function ListDetailPage() {
               disabled={updateMutation.isPending}
             />
           </div>
-
         </div>
 
         {/* Cards section */}
@@ -358,24 +355,30 @@ function ListDetailPage() {
             <VirtualizedMtgCardGrid
               view={viewMode}
               scrollElementRef={scrollContainerRef}
-              cards={cards.map((card) => ({
-                id: card.id,
-                scryfallCard: {
-                  name: card.scryfallCard.name,
-                  setCode: card.scryfallCard.setCode,
-                  setName: card.scryfallCard.setName,
-                  collectorNumber: card.scryfallCard.collectorNumber,
-                  imageUri: card.scryfallCard.imageUri,
-                  manaCost: card.scryfallCard.manaCost,
-                  priceUsd: card.scryfallCard.priceUsd,
-                  priceUsdFoil: card.scryfallCard.priceUsdFoil,
-                },
-                condition: card.condition,
-                isFoil: card.isFoil,
-                language: card.language,
-                quantity: card.quantity,
-                isInCollection: card.isInCollection,
-              }))}
+              cards={cards
+                .map((card) => ({
+                  id: card.id,
+                  scryfallCard: {
+                    name: card.scryfallCard.name,
+                    setCode: card.scryfallCard.setCode,
+                    setName: card.scryfallCard.setName,
+                    collectorNumber: card.scryfallCard.collectorNumber,
+                    imageUri: card.scryfallCard.imageUri,
+                    manaCost: card.scryfallCard.manaCost,
+                    priceUsd: card.scryfallCard.priceUsd,
+                    priceUsdFoil: card.scryfallCard.priceUsdFoil,
+                  },
+                  condition: card.condition,
+                  isFoil: card.isFoil,
+                  language: card.language,
+                  quantity: card.quantity,
+                  isInCollection: card.isInCollection,
+                }))
+                .sort((a, b) => {
+                  const priceA = a.isFoil ? a.scryfallCard.priceUsdFoil : a.scryfallCard.priceUsd;
+                  const priceB = b.isFoil ? b.scryfallCard.priceUsdFoil : b.scryfallCard.priceUsd;
+                  return (priceB ?? 0) - (priceA ?? 0);
+                })}
             />
           </>
         )}
