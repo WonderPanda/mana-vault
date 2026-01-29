@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { db } from "@mana-vault/db";
 import { scryfallCard, virtualList, virtualListCard } from "@mana-vault/db/schema/app";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure, publicProcedure } from "../index";
@@ -405,12 +405,14 @@ export const listsRouter = {
             imageUri: scryfallCard.imageUri,
             manaCost: scryfallCard.manaCost,
             typeLine: scryfallCard.typeLine,
+            priceUsd: scryfallCard.priceUsd,
+            priceUsdFoil: scryfallCard.priceUsdFoil,
           },
         })
         .from(virtualListCard)
         .innerJoin(scryfallCard, eq(virtualListCard.scryfallCardId, scryfallCard.id))
         .where(eq(virtualListCard.virtualListId, input.listId))
-        .orderBy(asc(scryfallCard.name));
+        .orderBy(desc(scryfallCard.priceUsd), asc(scryfallCard.name));
 
       return cards.map((card) => ({
         id: card.id,
@@ -431,6 +433,8 @@ export const listsRouter = {
           imageUri: card.scryfallCard.imageUri,
           manaCost: card.scryfallCard.manaCost,
           typeLine: card.scryfallCard.typeLine,
+          priceUsd: card.scryfallCard.priceUsd,
+          priceUsdFoil: card.scryfallCard.priceUsdFoil,
         },
       }));
     }),
@@ -646,12 +650,14 @@ export const listsRouter = {
             imageUri: scryfallCard.imageUri,
             manaCost: scryfallCard.manaCost,
             typeLine: scryfallCard.typeLine,
+            priceUsd: scryfallCard.priceUsd,
+            priceUsdFoil: scryfallCard.priceUsdFoil,
           },
         })
         .from(virtualListCard)
         .innerJoin(scryfallCard, eq(virtualListCard.scryfallCardId, scryfallCard.id))
         .where(eq(virtualListCard.virtualListId, list.id))
-        .orderBy(asc(scryfallCard.name));
+        .orderBy(desc(scryfallCard.priceUsd), asc(scryfallCard.name));
 
       return cards.map((card) => ({
         id: card.id,
@@ -671,6 +677,8 @@ export const listsRouter = {
           imageUri: card.scryfallCard.imageUri,
           manaCost: card.scryfallCard.manaCost,
           typeLine: card.scryfallCard.typeLine,
+          priceUsd: card.scryfallCard.priceUsd,
+          priceUsdFoil: card.scryfallCard.priceUsdFoil,
         },
       }));
     }),

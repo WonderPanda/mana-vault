@@ -389,6 +389,8 @@ function ListDetailPage() {
                   collectorNumber: card.scryfallCard.collectorNumber,
                   imageUri: card.scryfallCard.imageUri,
                   manaCost: card.scryfallCard.manaCost,
+                  priceUsd: card.scryfallCard.priceUsd,
+                  priceUsdFoil: card.scryfallCard.priceUsdFoil,
                 },
                 condition: card.condition,
                 isFoil: card.isFoil,

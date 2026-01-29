@@ -24,6 +24,8 @@ export interface MtgCardData {
     imageUri: string | null;
     manaCost?: string | null;
     typeLine?: string | null;
+    priceUsd?: number | null;
+    priceUsdFoil?: number | null;
   };
   // Card details - either from list card directly or from linked collection card
   condition?: string | null;
@@ -253,7 +255,15 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
               </span>
             )}
           </div>
-          <ManaCost cost={scryfallCard.manaCost} className="shrink-0" />
+          <div className="flex shrink-0 items-center gap-2">
+            {(() => {
+              const price = isFoil ? scryfallCard.priceUsdFoil : scryfallCard.priceUsd;
+              return price != null ? (
+                <span className="text-xs text-muted-foreground font-bold">${price.toFixed(2)}</span>
+              ) : null;
+            })()}
+            <ManaCost cost={scryfallCard.manaCost} className="shrink-0" />
+          </div>
         </div>
 
         <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
@@ -317,6 +327,14 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
           {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #
           {scryfallCard.collectorNumber}
         </p>
+        {(() => {
+          const price = isFoil ? scryfallCard.priceUsdFoil : scryfallCard.priceUsd;
+          return price != null ? (
+            <p className="text-[10px] font-bold text-muted-foreground sm:text-xs">
+              ${price.toFixed(2)}
+            </p>
+          ) : null;
+        })()}
         {/* Desktop: badges for condition, foil, language, quantity */}
         {hasDetails && (
           <div className="hidden flex-wrap gap-1 sm:mt-1 sm:flex">
