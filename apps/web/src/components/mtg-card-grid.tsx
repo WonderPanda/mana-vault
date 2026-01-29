@@ -225,6 +225,60 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
       <Package className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
     ) : null;
 
+  const hasDetails = condition || isFoil || language || ownershipStatus;
+  const price = isFoil ? scryfallCard.priceUsdFoil : scryfallCard.priceUsd;
+
+  const imageDialogContent = (
+    <>
+      {scryfallCard.imageUri ? (
+        <img
+          src={scryfallCard.imageUri}
+          alt={scryfallCard.name}
+          className="w-full rounded-lg"
+        />
+      ) : (
+        <div className="flex aspect-[488/680] w-full items-center justify-center rounded-lg bg-muted">
+          <span className="text-muted-foreground">No image available</span>
+        </div>
+      )}
+      <div className="mt-2 rounded-lg bg-background/90 px-3 py-2 backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="truncate font-medium text-sm">{scryfallCard.name}</h4>
+          {price != null && (
+            <span className="shrink-0 text-sm font-bold">${price.toFixed(2)}</span>
+          )}
+        </div>
+        <p className="truncate text-xs text-muted-foreground">
+          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #{scryfallCard.collectorNumber}
+        </p>
+        {hasDetails && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {isFoil && (
+              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                Foil
+              </span>
+            )}
+            {condition && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                {condition}
+              </span>
+            )}
+            {language && language !== "en" && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                {language}
+              </span>
+            )}
+            {quantity && quantity > 1 && (
+              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                x{quantity}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   if (view === "list") {
     return (
       <>
@@ -256,12 +310,9 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {(() => {
-              const price = isFoil ? scryfallCard.priceUsdFoil : scryfallCard.priceUsd;
-              return price != null ? (
-                <span className="text-xs text-muted-foreground font-bold">${price.toFixed(2)}</span>
-              ) : null;
-            })()}
+            {price != null && (
+              <span className="text-xs text-muted-foreground font-bold">${price.toFixed(2)}</span>
+            )}
             <ManaCost cost={scryfallCard.manaCost} className="shrink-0" />
           </div>
         </div>
@@ -271,27 +322,25 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
             className="max-w-[350px] bg-transparent p-0 ring-0 sm:max-w-[350px]"
             showCloseButton={false}
           >
-            {scryfallCard.imageUri ? (
-              <img
-                src={scryfallCard.imageUri}
-                alt={scryfallCard.name}
-                className="w-full rounded-lg"
-              />
-            ) : (
-              <div className="flex aspect-[488/680] w-full items-center justify-center rounded-lg bg-muted">
-                <span className="text-muted-foreground">No image available</span>
-              </div>
-            )}
+            {imageDialogContent}
           </DialogContent>
         </Dialog>
       </>
     );
   }
 
-  const hasDetails = condition || isFoil || language || ownershipStatus;
-
   return (
-    <Card className={cn("gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", onClick && "cursor-pointer")} onClick={onClick}>
+    <>
+    <Card
+      className={cn("gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", "cursor-pointer")}
+      onClick={() => {
+        if (onClick) {
+          onClick();
+        } else {
+          setIsImageDialogOpen(true);
+        }
+      }}
+    >
       <div className="relative overflow-hidden rounded-lg">
         {scryfallCard.imageUri ? (
           <img
@@ -327,14 +376,11 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
           {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #
           {scryfallCard.collectorNumber}
         </p>
-        {(() => {
-          const price = isFoil ? scryfallCard.priceUsdFoil : scryfallCard.priceUsd;
-          return price != null ? (
-            <p className="text-[10px] font-bold text-muted-foreground sm:text-xs">
-              ${price.toFixed(2)}
-            </p>
-          ) : null;
-        })()}
+        {price != null && (
+          <p className="text-[10px] font-bold text-muted-foreground sm:text-xs">
+            ${price.toFixed(2)}
+          </p>
+        )}
         {/* Desktop: badges for condition, foil, language, quantity */}
         {hasDetails && (
           <div className="hidden flex-wrap gap-1 sm:flex">
@@ -362,6 +408,16 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+      <DialogContent
+        className="max-w-[350px] bg-transparent p-0 ring-0 sm:max-w-[350px]"
+        showCloseButton={false}
+      >
+        {imageDialogContent}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
