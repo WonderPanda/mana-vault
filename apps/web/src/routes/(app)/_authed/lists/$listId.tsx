@@ -341,28 +341,6 @@ function ListDetailPage() {
             />
           </div>
 
-          {list.isPublic && list.slug && (
-            <div className="mt-4 space-y-2">
-              <Label htmlFor="public-url" className="text-sm font-medium">
-                Shareable Link
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="public-url"
-                  readOnly
-                  value={`${window.location.origin}/${list.userId}/list/${list.slug}`}
-                  className="font-mono text-sm"
-                />
-                <Button variant="outline" size="icon" onClick={handleCopyLink} className="shrink-0">
-                  {copySuccess ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Cards section */}
