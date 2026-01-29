@@ -296,7 +296,7 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
           </div>
         )}
         {ownershipIcon && (
-          <div className="absolute right-2 top-2 rounded-full bg-background/80 p-1.5 shadow-sm backdrop-blur-sm">
+          <div className="absolute -bottom-1 left-0 rounded-full bg-background/80 p-1.5 shadow-sm backdrop-blur-sm">
             {ownershipIcon}
           </div>
         )}
