@@ -6,14 +6,7 @@ import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 
 import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
 
-import {
-  setupDeckReplication,
-  setupDeckCardReplication,
-  setupScryfallCardReplication,
-  setupCollectionCardReplication,
-  setupCollectionCardLocationReplication,
-  setupStorageContainerReplication,
-} from "./replication";
+import { setupReplicationsWithMultiplexedStream } from "./replication";
 import type { ReplicationCheckpoint } from "./replication";
 import { client } from "@/utils/orpc";
 
@@ -365,16 +358,16 @@ async function initializeDb() {
     },
   });
 
-  // Set up replication for all collections
-  const deckReplicationState = setupDeckReplication(database, client);
-  const deckCardReplicationState = setupDeckCardReplication(database, client);
-  const storageContainerReplicationState = setupStorageContainerReplication(database, client);
-  const collectionCardReplicationState = setupCollectionCardReplication(database, client);
-  const collectionCardLocationReplicationState = setupCollectionCardLocationReplication(
-    database,
-    client,
-  );
-  const scryfallCardReplicationState = setupScryfallCardReplication(database, client);
+  // Set up replication for all collections using a single multiplexed SSE stream
+  // This reduces browser connection usage from 5 SSE streams to just 1
+  const {
+    deckReplicationState,
+    deckCardReplicationState,
+    storageContainerReplicationState,
+    collectionCardReplicationState,
+    collectionCardLocationReplicationState,
+    scryfallCardReplicationState,
+  } = setupReplicationsWithMultiplexedStream(database, client);
 
   // When deck cards change, trigger a scryfall card sync to ensure we have the card data
   // for the join. This is needed because scryfall card replication doesn't use live SSE

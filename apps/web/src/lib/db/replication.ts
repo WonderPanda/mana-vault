@@ -13,6 +13,7 @@ import type {
   ManaVaultDatabase,
 } from "./db";
 import type { AppRouterClient } from "@mana-vault/api/routers/index";
+import { createDemultiplexedStreams } from "./multiplexed-replication";
 
 /**
  * Checkpoint type for replication.
@@ -498,6 +499,227 @@ export function setupScryfallCardReplication(
   });
 
   return replicationState;
+}
+
+// =============================================================================
+// Multiplexed Stream Setup
+// =============================================================================
+
+/**
+ * Return type for setupReplicationsWithMultiplexedStream.
+ * Contains all replication states for monitoring and control.
+ */
+export interface MultiplexedReplicationStates {
+  deckReplicationState: RxReplicationState<DeckDoc, ReplicationCheckpoint>;
+  deckCardReplicationState: RxReplicationState<DeckCardDoc, ReplicationCheckpoint>;
+  storageContainerReplicationState: RxReplicationState<StorageContainerDoc, ReplicationCheckpoint>;
+  collectionCardReplicationState: RxReplicationState<CollectionCardDoc, ReplicationCheckpoint>;
+  collectionCardLocationReplicationState: RxReplicationState<
+    CollectionCardLocationDoc,
+    ReplicationCheckpoint
+  >;
+  scryfallCardReplicationState: RxReplicationState<ScryfallCardDoc, ReplicationCheckpoint>;
+}
+
+/**
+ * Sets up live replication for all collections using a single multiplexed SSE stream.
+ *
+ * This reduces browser connection usage from 5 SSE streams to just 1,
+ * staying well within the browser's ~6 connection per origin limit.
+ *
+ * The multiplexed stream is demultiplexed on the client side, routing events
+ * to the appropriate RxDB collection.
+ *
+ * @param db - The RxDB database instance
+ * @param client - The oRPC client instance
+ * @returns Object containing all replication states for monitoring/control
+ */
+export function setupReplicationsWithMultiplexedStream(
+  db: ManaVaultDatabase,
+  client: AppRouterClient,
+): MultiplexedReplicationStates {
+  // Create demultiplexed streams from the single multiplexed endpoint
+  const streams = createDemultiplexedStreams(client);
+
+  // Set up deck replication with demultiplexed stream
+  const deckReplicationState = replicateRxCollection<DeckDoc, ReplicationCheckpoint>({
+    collection: db.decks,
+    replicationIdentifier: "deck-pull-replication",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.decks.sync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 50,
+      stream$: streams.deck$,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  deckReplicationState.error$.subscribe((error) => {
+    console.error("Deck replication error:", error);
+  });
+
+  // Set up deck card replication with demultiplexed stream
+  const deckCardReplicationState = replicateRxCollection<DeckCardDoc, ReplicationCheckpoint>({
+    collection: db.deck_cards,
+    replicationIdentifier: "deck-card-pull-replication",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.decks.cardSync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 100,
+      stream$: streams.deckCard$,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  deckCardReplicationState.error$.subscribe((error) => {
+    console.error("Deck card replication error:", error);
+  });
+
+  // Set up storage container replication with demultiplexed stream
+  const storageContainerReplicationState = replicateRxCollection<
+    StorageContainerDoc,
+    ReplicationCheckpoint
+  >({
+    collection: db.storage_containers,
+    replicationIdentifier: "storage-container-pull-replication",
+    deletedField: "_deleted",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.collections.sync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 50,
+      stream$: streams.storageContainer$,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  storageContainerReplicationState.error$.subscribe((error) => {
+    console.error("Storage container replication error:", error);
+  });
+
+  // Set up collection card replication with demultiplexed stream
+  const collectionCardReplicationState = replicateRxCollection<
+    CollectionCardDoc,
+    ReplicationCheckpoint
+  >({
+    collection: db.collection_cards,
+    replicationIdentifier: "collection-card-pull-replication",
+    deletedField: "_deleted",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.collections.cardSync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 100,
+      stream$: streams.collectionCard$,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  collectionCardReplicationState.error$.subscribe((error) => {
+    console.error("Collection card replication error:", error);
+  });
+
+  // Set up collection card location replication with demultiplexed stream
+  const collectionCardLocationReplicationState = replicateRxCollection<
+    CollectionCardLocationDoc,
+    ReplicationCheckpoint
+  >({
+    collection: db.collection_card_locations,
+    replicationIdentifier: "collection-card-location-pull-replication",
+    deletedField: "_deleted",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.collections.locationSync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 100,
+      stream$: streams.collectionCardLocation$,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  collectionCardLocationReplicationState.error$.subscribe((error) => {
+    console.error("Collection card location replication error:", error);
+  });
+
+  // Set up scryfall card replication (pull-only, no live stream)
+  // Scryfall cards don't use the multiplexed stream since they're triggered by deck card changes
+  const scryfallCardReplicationState = replicateRxCollection<
+    ScryfallCardDoc,
+    ReplicationCheckpoint
+  >({
+    collection: db.scryfall_cards,
+    replicationIdentifier: "scryfall-card-pull-replication",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.cards.sync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 100,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  scryfallCardReplicationState.error$.subscribe((error) => {
+    console.error("Scryfall card replication error:", error);
+  });
+
+  return {
+    deckReplicationState,
+    deckCardReplicationState,
+    storageContainerReplicationState,
+    collectionCardReplicationState,
+    collectionCardLocationReplicationState,
+    scryfallCardReplicationState,
+  };
 }
 
 /**

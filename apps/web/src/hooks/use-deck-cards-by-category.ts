@@ -14,8 +14,8 @@ export type CardCategory =
   | "Other";
 
 export const CARD_CATEGORIES: CardCategory[] = [
-  "Creatures",
   "Planeswalkers",
+  "Creatures",
   "Instants",
   "Sorceries",
   "Artifacts",

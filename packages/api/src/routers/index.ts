@@ -6,6 +6,7 @@ import { cardsRouter } from "./cards";
 import { collectionsRouter } from "./collections";
 import { decksRouter } from "./decks";
 import { listsRouter } from "./lists";
+import { syncRouter } from "./sync";
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
@@ -22,6 +23,7 @@ export const appRouter = {
   collections: collectionsRouter,
   decks: decksRouter,
   lists: listsRouter,
+  sync: syncRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
