@@ -57,6 +57,8 @@ export const web = await Vite("web", {
   assets: "dist",
   bindings: {
     VITE_SERVER_URL: alchemy.env.VITE_SERVER_URL!,
+    VITE_PUBLIC_POSTHOG_KEY: alchemy.env.VITE_PUBLIC_POSTHOG_KEY!,
+    VITE_PUBLIC_POSTHOG_HOST: alchemy.env.VITE_PUBLIC_POSTHOG_HOST!,
   },
 });
 

@@ -21,22 +21,19 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { DbProvider } from "@/lib/db/db-context";
 import { getOrCreateDb } from "@/lib/db/db";
-import { executeInitialSync } from "@/lib/db/replication";
 import { cn } from "@/lib/utils";
-import { client } from "@/utils/orpc";
+import posthog from "posthog-js";
 
 const ADMIN_EMAIL = "jesse@thecarters.cloud";
 
 export const Route = createFileRoute("/(app)/_authed")({
   component: AuthedLayout,
-  beforeLoad: async ({ context: { queryClient, orpc } }) => {
+  beforeLoad: async ({ context: { queryClient } }) => {
     // First fetch session (always fresh on first load, then cached until expiry)
-    const session = await queryClient.fetchQuery({
+    const session = await queryClient.ensureQueryData({
       queryKey: ["session"],
-      queryFn: () => authClient.getSession(),
-      staleTime: (query: {
-        state: { data?: Awaited<ReturnType<typeof authClient.getSession>> };
-      }) => {
+      queryFn: async () => await authClient.getSession(),
+      staleTime: (query) => {
         const data = query.state.data;
         if (!data?.data?.session?.expiresAt) return 0;
         // Cache until 10 seconds before session expires
@@ -50,6 +47,22 @@ export const Route = createFileRoute("/(app)/_authed")({
         to: "/login",
       });
     }
+
+    await queryClient.ensureQueryData({
+      queryKey: ["identifyPosthog"],
+      queryFn: async () => {
+        posthog.identify(session.data?.user.id, {
+          email: session.data?.user.email,
+          name: session.data?.user.name,
+        });
+        posthog.setPersonProperties({
+          email: session.data?.user.email,
+          name: session.data?.user.name,
+        });
+        return { success: true };
+      },
+      staleTime: Infinity,
+    });
 
     const customerState = await queryClient.ensureQueryData({
       queryKey: ["customerState"],
