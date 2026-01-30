@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import type { SelectedCard } from "@/types/scryfall";
 
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,11 +20,13 @@ interface CardSearchDialogProps {
   /** Callback when open state changes */
   onOpenChange: (open: boolean) => void;
   /** Callback when cards are selected and confirmed */
-  onSelect: (cards: SelectedCard[]) => void;
+  onSelect: (cards: SelectedCard[], options?: { addToCollection?: boolean }) => void;
   /** Optional title override */
   title?: string;
   /** Optional description override */
   description?: string;
+  /** Show the "I own these cards" toggle */
+  showCollectionToggle?: boolean;
 }
 
 /**
@@ -56,8 +59,10 @@ export function CardSearchDialog({
   onSelect,
   title = "Search Cards",
   description = "Search for Magic cards to add. You can select multiple cards and specify quantities.",
+  showCollectionToggle = false,
 }: CardSearchDialogProps) {
   const [selectedCards, setSelectedCards] = useState<SelectedCard[]>([]);
+  const [addToCollection, setAddToCollection] = useState(false);
   const contentKeyRef = useRef(0);
 
   const handleClose = useCallback(() => {
@@ -65,6 +70,7 @@ export function CardSearchDialog({
     // Reset state after dialog animation completes
     setTimeout(() => {
       setSelectedCards([]);
+      setAddToCollection(false);
       contentKeyRef.current += 1;
     }, 200);
   }, [onOpenChange]);
@@ -75,10 +81,10 @@ export function CardSearchDialog({
 
   const handleSubmit = useCallback(() => {
     if (selectedCards.length > 0) {
-      onSelect(selectedCards);
+      onSelect(selectedCards, { addToCollection });
       handleClose();
     }
-  }, [selectedCards, onSelect, handleClose]);
+  }, [selectedCards, onSelect, handleClose, addToCollection]);
 
   const totalQuantity = selectedCards.reduce((sum, sc) => sum + sc.quantity, 0);
 
@@ -101,16 +107,27 @@ export function CardSearchDialog({
 
         <DialogFooter className="shrink-0 gap-2 sm:gap-0">
           <div className="flex w-full items-center justify-between gap-4">
-            <span className="text-sm text-muted-foreground">
-              {selectedCards.length > 0 ? (
-                <>
-                  {selectedCards.length} card{selectedCards.length !== 1 ? "s" : ""} selected
-                  {totalQuantity !== selectedCards.length && ` (${totalQuantity} total)`}
-                </>
-              ) : (
-                "No cards selected"
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {selectedCards.length > 0 ? (
+                  <>
+                    {selectedCards.length} card{selectedCards.length !== 1 ? "s" : ""} selected
+                    {totalQuantity !== selectedCards.length && ` (${totalQuantity} total)`}
+                  </>
+                ) : (
+                  "No cards selected"
+                )}
+              </span>
+              {showCollectionToggle && (
+                <label className="flex cursor-pointer items-center gap-2">
+                  <Checkbox
+                    checked={addToCollection}
+                    onCheckedChange={(checked) => setAddToCollection(checked === true)}
+                  />
+                  <span className="text-sm">I own these cards</span>
+                </label>
               )}
-            </span>
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleClose}>
                 Cancel

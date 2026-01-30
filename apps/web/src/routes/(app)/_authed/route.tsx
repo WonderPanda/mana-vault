@@ -24,7 +24,7 @@ import { getOrCreateDb } from "@/lib/db/db";
 import { cn } from "@/lib/utils";
 import posthog from "posthog-js";
 
-const ADMIN_EMAIL = "jesse@thecarters.cloud";
+const ADMIN_DOMAIN = "@thecarters.cloud";
 
 export const Route = createFileRoute("/(app)/_authed")({
   component: AuthedLayout,
@@ -100,7 +100,7 @@ function AuthedLayout() {
   const { session, db } = Route.useRouteContext();
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
-  const isAdmin = session.user.email === ADMIN_EMAIL;
+  const isAdmin = session.user.email?.includes(ADMIN_DOMAIN) ?? false;
 
   const handleSignOut = () => {
     authClient.signOut({

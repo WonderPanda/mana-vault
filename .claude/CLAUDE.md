@@ -253,6 +253,39 @@ export const appRouter = {
 - Use `integer` with `mode: "timestamp_ms"` for dates
 - **IMPORTANT**: Before modifying schema or writing queries, review `SCHEMA.md` to understand the data model and relationships
 
+### Cloudflare D1 Bulk Inserts
+
+Cloudflare D1 has a limit of ~100 bound variables per query. For bulk inserts, use the `json_each` + `json_extract` pattern: serialize the entire array as a single JSON string (1 bound variable), then use `json_each()` to expand rows and `json_extract()` to pull columns.
+
+```typescript
+const CHUNK_SIZE = 100;
+for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+  const chunk = items.slice(i, i + CHUNK_SIZE);
+  const jsonData = JSON.stringify(chunk);
+
+  await db.run(sql`
+    INSERT OR IGNORE INTO ${myTable} (id, name, value)
+    SELECT
+      json_extract(value, '$.id'),
+      json_extract(value, '$.name'),
+      json_extract(value, '$.value')
+    FROM json_each(${jsonData})
+  `);
+}
+```
+
+**Key points:**
+
+- Process in chunks of ~100 to avoid memory issues
+- `json_each(${jsonData})` expands the JSON array into rows with a `value` column
+- `json_extract(value, '$.field')` pulls each field from the JSON object
+- Use `INSERT OR IGNORE` or `INSERT OR REPLACE` as needed
+
+**Existing implementations:**
+
+- `apps/server/src/queue-handlers/scryfall-import.ts` — Scryfall card import
+- `packages/api/src/routers/collections.ts` — collection card import
+
 ### Data Model Guidelines
 
 When working with the core data model, keep these principles in mind:

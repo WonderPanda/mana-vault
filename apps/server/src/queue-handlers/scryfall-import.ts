@@ -220,12 +220,47 @@ export async function handleScryfallImport(
       throw new Error("No response body from bulk data download");
     }
 
-    // Stream directly to R2
-    await r2Bucket.put(bulkDataKey, downloadResponse.body, {
-      httpMetadata: {
-        contentType: "application/json",
-      },
-    });
+    // Stream to R2 with progress logging
+    // R2 put() requires a stream with a known length. Piping through a
+    // TransformStream loses that metadata, so we use FixedLengthStream
+    // to re-attach it. Without Content-Length we skip progress and stream directly.
+    const contentLength = downloadResponse.headers.get("content-length");
+    const totalBytes = contentLength ? parseInt(contentLength, 10) : null;
+
+    if (totalBytes) {
+      let bytesReceived = 0;
+      let lastLoggedPct = 0;
+
+      const progressStream = new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          bytesReceived += chunk.byteLength;
+          const pct = Math.floor((bytesReceived / totalBytes) * 100);
+          if (pct >= lastLoggedPct + 10) {
+            console.log(
+              `[Scryfall Parse] Download progress: ${pct}% (${(bytesReceived / 1024 / 1024).toFixed(1)}MB / ${(totalBytes / 1024 / 1024).toFixed(1)}MB)`,
+            );
+            lastLoggedPct = pct;
+          }
+          controller.enqueue(chunk);
+        },
+      });
+
+      const fixedStream = new FixedLengthStream(totalBytes);
+      downloadResponse.body.pipeThrough(progressStream).pipeTo(fixedStream.writable);
+
+      await r2Bucket.put(bulkDataKey, fixedStream.readable, {
+        httpMetadata: {
+          contentType: "application/json",
+        },
+      });
+    } else {
+      // No Content-Length — stream directly without progress
+      await r2Bucket.put(bulkDataKey, downloadResponse.body, {
+        httpMetadata: {
+          contentType: "application/json",
+        },
+      });
+    }
 
     downloadMs = Date.now() - downloadStart;
     console.log(`[Scryfall Parse] Downloaded to R2 in ${(downloadMs / 1000).toFixed(1)}s`);

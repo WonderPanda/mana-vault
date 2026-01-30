@@ -1,14 +1,23 @@
+import { randomUUID } from "node:crypto";
 import { ORPCError, eventIterator } from "@orpc/server";
 import { db } from "@mana-vault/db";
-import { deck, deckCard, scryfallCard } from "@mana-vault/db/schema/app";
+import {
+  collectionCard,
+  collectionCardLocation,
+  deck,
+  deckCard,
+  scryfallCard,
+} from "@mana-vault/db/schema/app";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
 import { parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
-import { ensureScryfallCard } from "../utils/scryfall-fetch";
-import { lookupScryfallCard } from "../utils/scryfall-lookup";
+import {
+  collectionCardPublisher,
+  collectionCardLocationPublisher,
+} from "../publishers/collection-publisher";
 import {
   deckPublisher,
   deckCardPublisher,
@@ -16,6 +25,8 @@ import {
   type DeckStreamEvent,
   type DeckCardStreamEvent,
 } from "../publishers/deck-publisher";
+import { ensureScryfallCard } from "../utils/scryfall-fetch";
+import { lookupScryfallCard } from "../utils/scryfall-lookup";
 
 /**
  * Checkpoint schema for RxDB replication.
@@ -71,6 +82,77 @@ export type DeckStatus = z.infer<typeof deckStatusSchema>;
  */
 const deckArchetypeSchema = z.enum(["aggro", "control", "combo", "midrange", "tempo", "other"]);
 export type DeckArchetype = z.infer<typeof deckArchetypeSchema>;
+
+/**
+ * Bulk-insert collection_card + collection_card_location entries using json_each.
+ * Follows the D1 bulk insert pattern (avoids ~100 bound variable limit).
+ */
+async function bulkCreateCollectionCards(
+  database: typeof db,
+  userId: string,
+  deckId: string,
+  cards: Array<{ scryfallId: string; quantity: number }>,
+) {
+  // Expand quantities: 1 row per physical card
+  const cardsToInsert: Array<{ id: string; userId: string; scryfallCardId: string }> = [];
+  for (const { scryfallId, quantity } of cards) {
+    for (let i = 0; i < quantity; i++) {
+      cardsToInsert.push({
+        id: randomUUID(),
+        userId,
+        scryfallCardId: scryfallId,
+      });
+    }
+  }
+
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < cardsToInsert.length; i += CHUNK_SIZE) {
+    const chunk = cardsToInsert.slice(i, i + CHUNK_SIZE);
+    const cardJsonData = JSON.stringify(chunk);
+
+    await database.run(sql`
+      INSERT OR IGNORE INTO ${collectionCard} (
+        id, user_id, scryfall_card_id,
+        condition, is_foil, language, notes,
+        acquired_at, status, created_at, updated_at
+      )
+      SELECT
+        json_extract(value, '$.id'),
+        json_extract(value, '$.userId'),
+        json_extract(value, '$.scryfallCardId'),
+        'near_mint', 0, 'en', NULL,
+        cast(unixepoch('subsecond') * 1000 as integer),
+        'owned',
+        cast(unixepoch('subsecond') * 1000 as integer),
+        cast(unixepoch('subsecond') * 1000 as integer)
+      FROM json_each(${cardJsonData})
+    `);
+
+    // Insert location entries linking each card to the deck
+    const locationData = chunk.map((card) => ({
+      id: randomUUID(),
+      collectionCardId: card.id,
+      deckId,
+    }));
+    const locationJsonData = JSON.stringify(locationData);
+
+    await database.run(sql`
+      INSERT OR IGNORE INTO ${collectionCardLocation} (
+        id, collection_card_id, deck_id,
+        assigned_at, updated_at
+      )
+      SELECT
+        json_extract(loc.value, '$.id'),
+        json_extract(loc.value, '$.collectionCardId'),
+        json_extract(loc.value, '$.deckId'),
+        cast(unixepoch('subsecond') * 1000 as integer),
+        cast(unixepoch('subsecond') * 1000 as integer)
+      FROM json_each(${locationJsonData}) AS loc
+      INNER JOIN ${collectionCard} AS cc
+        ON cc.id = json_extract(loc.value, '$.collectionCardId')
+    `);
+  }
+}
 
 export const decksRouter = {
   /**
@@ -201,6 +283,8 @@ export const decksRouter = {
         format: importFormatSchema,
         /** Which board to import cards to (default: main) */
         board: z.enum(["main", "sideboard", "maybeboard"]).default("main"),
+        /** Whether to also create collection cards (marking ownership) */
+        addToCollection: z.boolean().default(false),
       }),
     )
     .handler(async ({ context, input }) => {
@@ -233,6 +317,7 @@ export const decksRouter = {
       let skippedCount = 0;
       let parseErrorCount = 0;
       let totalQuantity = 0;
+      const successfulCards: Array<{ scryfallId: string; quantity: number }> = [];
 
       if (input.format === "manabox") {
         // Parse the CSV based on ManaBox format
@@ -289,6 +374,7 @@ export const decksRouter = {
             });
 
             importedCount += row.quantity;
+            successfulCards.push({ scryfallId: row.scryfallId, quantity: row.quantity });
           } catch (error) {
             if (isForeignKeyError(error)) {
               skippedCount++;
@@ -348,6 +434,7 @@ export const decksRouter = {
             });
 
             importedCount += row.quantity;
+            successfulCards.push({ scryfallId: foundCard.id, quantity: row.quantity });
           } catch (error) {
             if (isForeignKeyError(error)) {
               skippedCount++;
@@ -364,6 +451,13 @@ export const decksRouter = {
       // Note: Scryfall card sync is triggered client-side when deck cards change
       if (importedCount > 0) {
         deckCardPublisher.publish(userId, "RESYNC");
+      }
+
+      // Optionally create collection cards to mark ownership
+      if (input.addToCollection && successfulCards.length > 0) {
+        await bulkCreateCollectionCards(db, userId, input.deckId, successfulCards);
+        collectionCardPublisher.publish(userId, "RESYNC");
+        collectionCardLocationPublisher.publish(userId, "RESYNC");
       }
 
       return {
@@ -528,6 +622,8 @@ export const decksRouter = {
           .min(1, "At least one card is required"),
         /** Which board to add the cards to (default: mainboard) */
         board: z.enum(["main", "sideboard", "maybeboard"]).default("main"),
+        /** Whether to also create collection cards (marking ownership) */
+        addToCollection: z.boolean().default(false),
       }),
     )
     .handler(async ({ context, input }) => {
@@ -546,6 +642,7 @@ export const decksRouter = {
       let addedCount = 0;
       let skippedCount = 0;
       let totalQuantity = 0;
+      const successfulCards: Array<{ scryfallId: string; quantity: number }> = [];
 
       // Process each card
       for (const cardInput of input.cards) {
@@ -581,6 +678,7 @@ export const decksRouter = {
 
           addedCount++;
           totalQuantity += cardInput.quantity;
+          successfulCards.push({ scryfallId: card.id, quantity: cardInput.quantity });
         } catch (error) {
           // Handle any insertion errors
           if (isForeignKeyError(error)) {
@@ -596,6 +694,13 @@ export const decksRouter = {
       // Note: Scryfall card sync is triggered client-side when deck cards change
       if (addedCount > 0) {
         deckCardPublisher.publish(userId, "RESYNC");
+      }
+
+      // Optionally create collection cards to mark ownership
+      if (input.addToCollection && successfulCards.length > 0) {
+        await bulkCreateCollectionCards(db, userId, input.deckId, successfulCards);
+        collectionCardPublisher.publish(userId, "RESYNC");
+        collectionCardLocationPublisher.publish(userId, "RESYNC");
       }
 
       return {

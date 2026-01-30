@@ -19,13 +19,13 @@ const requireAuth = o.middleware(async ({ context, next }) => {
 
 export const protectedProcedure = publicProcedure.use(requireAuth);
 
-const ADMIN_EMAIL = "jesse@thecarters.cloud";
+const ADMIN_DOMAIN = "@thecarters.cloud";
 
 const requireAdmin = o.middleware(async ({ context, next }) => {
   if (!context.session?.user) {
     throw new ORPCError("UNAUTHORIZED");
   }
-  if (context.session.user.email !== ADMIN_EMAIL) {
+  if (!context.session.user.email?.includes(ADMIN_DOMAIN)) {
     throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
   }
   return next({

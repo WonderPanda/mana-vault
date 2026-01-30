@@ -377,13 +377,13 @@ export function useDeckOwnedCardCountByBoard(deckId: string, board: BoardType) {
         }))
         .distinct();
 
-      // Main query
+      // Main query — use deckCard.oracleId directly instead of joining with scryfall cards,
+      // so the count doesn't depend on scryfall data being synced to the client
       return q
         .from({ deckCard: deckCardCollection })
-        .innerJoin({ card: scryfallCardCollection }, ({ card, deckCard }) =>
-          eq(deckCard.preferredScryfallId, card.id),
+        .leftJoin({ owned: ownedOracleIds }, ({ deckCard, owned }) =>
+          eq(deckCard.oracleId, owned.oracleId),
         )
-        .leftJoin({ owned: ownedOracleIds }, ({ card, owned }) => eq(card.oracleId, owned.oracleId))
         .where(({ deckCard }) => and(eq(deckCard.deckId, deckId), eq(deckCard.board, board)))
         .select(({ deckCard, owned }) => ({
           quantity: deckCard.quantity,

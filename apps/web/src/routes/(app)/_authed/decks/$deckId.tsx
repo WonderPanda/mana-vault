@@ -41,7 +41,7 @@ import {
   useDeckOwnedCardCountByBoard,
   type BoardType,
   type CardCategory,
-} from "@/hooks/use-deck-cards-by-category";
+} from "@/hooks/use-deck-cards";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const deckDetailSearchSchema = z.object({
@@ -128,6 +128,7 @@ function DeckDetailPage() {
       csvContent: data.csvContent,
       format: data.format,
       board: activeBoard,
+      addToCollection: data.addToCollection ?? false,
     });
   };
 
@@ -135,7 +136,7 @@ function DeckDetailPage() {
     deleteMutation.mutate({ id: deckId });
   };
 
-  const handleAddFromSearch = (cards: SelectedCard[]) => {
+  const handleAddFromSearch = (cards: SelectedCard[], options?: { addToCollection?: boolean }) => {
     addCardsMutation.mutate({
       deckId,
       cards: cards.map((c) => ({
@@ -143,6 +144,7 @@ function DeckDetailPage() {
         quantity: c.quantity,
       })),
       board: activeBoard,
+      addToCollection: options?.addToCollection ?? false,
     });
   };
 
@@ -235,6 +237,7 @@ function DeckDetailPage() {
         onImport={handleImport}
         isImporting={importMutation.isPending}
         title={`Import Cards to "${deck.name}"`}
+        showCollectionToggle
       />
 
       <DeleteConfirmationDialog
@@ -253,6 +256,7 @@ function DeckDetailPage() {
         onSelect={handleAddFromSearch}
         title={`Add Cards to "${deck.name}"`}
         description="Search for Magic cards to add to this deck. You can select multiple cards and specify quantities."
+        showCollectionToggle
       />
 
       <PageContent>

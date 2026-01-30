@@ -2,7 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Grid2X2, List, Package, PackageCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import type { OwnershipStatus } from "@/hooks/use-deck-cards-by-category";
+import type { OwnershipStatus } from "@/hooks/use-deck-cards";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 
@@ -231,11 +231,7 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
   const imageDialogContent = (
     <>
       {scryfallCard.imageUri ? (
-        <img
-          src={scryfallCard.imageUri}
-          alt={scryfallCard.name}
-          className="w-full rounded-lg"
-        />
+        <img src={scryfallCard.imageUri} alt={scryfallCard.name} className="w-full rounded-lg" />
       ) : (
         <div className="flex aspect-[488/680] w-full items-center justify-center rounded-lg bg-muted">
           <span className="text-muted-foreground">No image available</span>
@@ -244,12 +240,11 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
       <div className="mt-2 rounded-lg bg-background/90 px-3 py-2 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-2">
           <h4 className="truncate font-medium text-sm">{scryfallCard.name}</h4>
-          {price != null && (
-            <span className="shrink-0 text-sm font-bold">${price.toFixed(2)}</span>
-          )}
+          {price != null && <span className="shrink-0 text-sm font-bold">${price.toFixed(2)}</span>}
         </div>
         <p className="truncate text-xs text-muted-foreground">
-          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #{scryfallCard.collectorNumber}
+          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #
+          {scryfallCard.collectorNumber}
         </p>
         {hasDetails && (
           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -331,92 +326,92 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
 
   return (
     <>
-    <Card
-      className={cn("gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", "cursor-pointer")}
-      onClick={() => {
-        if (onClick) {
-          onClick();
-        } else {
-          setIsImageDialogOpen(true);
-        }
-      }}
-    >
-      <div className="relative overflow-hidden rounded-lg">
-        {scryfallCard.imageUri ? (
-          <img
-            src={scryfallCard.imageUri}
-            alt={scryfallCard.name}
-            className="aspect-[488/680] w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex aspect-[488/680] w-full items-center justify-center bg-muted">
-            <span className="text-muted-foreground">No image</span>
-          </div>
-        )}
-        {ownershipIcon && (
-          <div className="absolute -bottom-1 left-0 rounded-full bg-background/80 p-1.5 shadow-sm backdrop-blur-sm">
-            {ownershipIcon}
-          </div>
-        )}
-      </div>
-      <CardContent className="px-1 py-0.5 sm:px-3 sm:py-1">
-        <h4 className="hidden truncate font-medium sm:block">{scryfallCard.name}</h4>
-        {/* Mobile: single line with set code, collector number, and condition */}
-        <div className="flex items-center justify-between gap-1 sm:hidden">
-          <p className="truncate text-[10px] text-muted-foreground">
-            {scryfallCard.setCode.toUpperCase()} #{scryfallCard.collectorNumber}
-          </p>
-          {condition && (
-            <span className="shrink-0 text-[10px] text-muted-foreground">{condition}</span>
+      <Card
+        className={cn("gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", "cursor-pointer")}
+        onClick={() => {
+          if (onClick) {
+            onClick();
+          } else {
+            setIsImageDialogOpen(true);
+          }
+        }}
+      >
+        <div className="relative overflow-hidden rounded-lg">
+          {scryfallCard.imageUri ? (
+            <img
+              src={scryfallCard.imageUri}
+              alt={scryfallCard.name}
+              className="aspect-[488/680] w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex aspect-[488/680] w-full items-center justify-center bg-muted">
+              <span className="text-muted-foreground">No image</span>
+            </div>
+          )}
+          {ownershipIcon && (
+            <div className="absolute -bottom-1 left-0 rounded-full bg-background/80 p-1.5 shadow-sm backdrop-blur-sm">
+              {ownershipIcon}
+            </div>
           )}
         </div>
-        {/* Desktop: full set name with code and collector number */}
-        <p className="hidden truncate text-xs text-muted-foreground sm:block">
-          {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #
-          {scryfallCard.collectorNumber}
-        </p>
-        {price != null && (
-          <p className="text-[10px] font-bold text-muted-foreground sm:text-xs">
-            ${price.toFixed(2)}
-          </p>
-        )}
-        {/* Desktop: badges for condition, foil, language, quantity */}
-        {hasDetails && (
-          <div className="hidden flex-wrap gap-1 sm:flex">
-            {isFoil && (
-              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                Foil
-              </span>
-            )}
+        <CardContent className="px-1 py-0.5 sm:px-3 sm:py-1">
+          <h4 className="hidden truncate font-medium sm:block">{scryfallCard.name}</h4>
+          {/* Mobile: single line with set code, collector number, and condition */}
+          <div className="flex items-center justify-between gap-1 sm:hidden">
+            <p className="truncate text-[10px] text-muted-foreground">
+              {scryfallCard.setCode.toUpperCase()} #{scryfallCard.collectorNumber}
+            </p>
             {condition && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                {condition}
-              </span>
-            )}
-            {language && language !== "en" && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase">
-                {language}
-              </span>
-            )}
-            {quantity && quantity > 1 && (
-              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                x{quantity}
-              </span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{condition}</span>
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+          {/* Desktop: full set name with code and collector number */}
+          <p className="hidden truncate text-xs text-muted-foreground sm:block">
+            {scryfallCard.setName} ({scryfallCard.setCode.toUpperCase()}) #
+            {scryfallCard.collectorNumber}
+          </p>
+          {price != null && (
+            <p className="text-[10px] font-bold text-muted-foreground sm:text-xs">
+              ${price.toFixed(2)}
+            </p>
+          )}
+          {/* Desktop: badges for condition, foil, language, quantity */}
+          {hasDetails && (
+            <div className="hidden flex-wrap gap-1 sm:flex">
+              {isFoil && (
+                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                  Foil
+                </span>
+              )}
+              {condition && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                  {condition}
+                </span>
+              )}
+              {language && language !== "en" && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                  {language}
+                </span>
+              )}
+              {quantity && quantity > 1 && (
+                <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                  x{quantity}
+                </span>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-    <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-      <DialogContent
-        className="max-w-[350px] bg-transparent p-0 ring-0 sm:max-w-[350px]"
-        showCloseButton={false}
-      >
-        {imageDialogContent}
-      </DialogContent>
-    </Dialog>
+      <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <DialogContent
+          className="max-w-[350px] bg-transparent p-0 ring-0 sm:max-w-[350px]"
+          showCloseButton={false}
+        >
+          {imageDialogContent}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

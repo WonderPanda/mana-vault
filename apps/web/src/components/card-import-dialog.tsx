@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { FileUp, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,8 @@ export interface CardImportData {
   csvContent: string;
   /** The selected format for parsing */
   format: Format;
+  /** Whether to also create collection cards (marking ownership) */
+  addToCollection?: boolean;
 }
 
 interface CardImportDialogProps {
@@ -69,6 +72,8 @@ interface CardImportDialogProps {
   title?: string;
   /** Optional description override */
   description?: string;
+  /** Show the "I own these cards" toggle */
+  showCollectionToggle?: boolean;
 }
 
 export function CardImportDialog({
@@ -78,12 +83,14 @@ export function CardImportDialog({
   isImporting = false,
   title = "Import Cards",
   description = "Import cards from a file or paste text content directly.",
+  showCollectionToggle = false,
 }: CardImportDialogProps) {
   const [inputMethod, setInputMethod] = useState<"paste" | "file">("paste");
   const [csvContent, setCsvContent] = useState("");
   const [format, setFormat] = useState<Format>("manabox");
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [addToCollection, setAddToCollection] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (file: File) => {
@@ -138,6 +145,7 @@ export function CardImportDialog({
     onImport({
       csvContent: csvContent.trim(),
       format,
+      addToCollection,
     });
   };
 
@@ -148,6 +156,7 @@ export function CardImportDialog({
       setCsvContent("");
       setFileName(null);
       setInputMethod("paste");
+      setAddToCollection(false);
     }, 200);
   };
 
@@ -257,12 +266,32 @@ export function CardImportDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isImporting}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!hasContent || isImporting}>
-              {isImporting ? "Importing..." : "Import"}
-            </Button>
+            <div className="flex w-full items-center justify-between gap-4">
+              {showCollectionToggle ? (
+                <label className="flex cursor-pointer items-center gap-2">
+                  <Checkbox
+                    checked={addToCollection}
+                    onCheckedChange={(checked) => setAddToCollection(checked === true)}
+                  />
+                  <span className="text-sm">I own these cards</span>
+                </label>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={isImporting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!hasContent || isImporting}>
+                  {isImporting ? "Importing..." : "Import"}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

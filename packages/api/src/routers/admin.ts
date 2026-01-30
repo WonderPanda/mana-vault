@@ -6,7 +6,7 @@ import z from "zod";
 
 import { adminProcedure, protectedProcedure } from "../index";
 
-const ADMIN_EMAIL = "jesse@thecarters.cloud";
+const ADMIN_DOMAIN = "@thecarters.cloud";
 
 /** Headers required by Scryfall API */
 const SCRYFALL_HEADERS = {
@@ -52,7 +52,7 @@ export const adminRouter = {
    * Check if the current user is an admin
    */
   isAdmin: protectedProcedure.handler(({ context }) => {
-    return context.session.user.email === ADMIN_EMAIL;
+    return context.session.user.email?.includes(ADMIN_DOMAIN) ?? false;
   }),
 
   /**
