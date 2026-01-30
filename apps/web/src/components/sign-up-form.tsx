@@ -56,8 +56,8 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
   }
 
   return (
-    <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Create Account</h1>
+    <div className="w-full rounded-xl border bg-card p-6 shadow-sm">
+      <h1 className="mb-6 text-center text-2xl font-bold">Create Account</h1>
 
       <form
         onSubmit={(e) => {
