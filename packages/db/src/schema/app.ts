@@ -486,6 +486,12 @@ export const tag = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+    /** Soft delete timestamp - when set, the tag is considered deleted */
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     index("tag_user_id_idx").on(table.userId),

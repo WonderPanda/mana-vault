@@ -32,9 +32,12 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
         {
           onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ["session"] });
-            navigate({
-              to: "/cards",
-            });
+
+            setTimeout(() => {
+              navigate({
+                to: "/cards",
+              });
+            }, 10);
             toast.success("Sign in successful");
           },
           onError: (error) => {

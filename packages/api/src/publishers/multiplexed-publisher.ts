@@ -4,6 +4,7 @@ import type {
   CollectionCardStreamEvent,
   CollectionCardLocationStreamEvent,
 } from "./collection-publisher";
+import type { TagStreamEvent } from "./tag-publisher";
 
 // =============================================================================
 // Multiplexed Stream Types
@@ -18,7 +19,8 @@ export type MultiplexedEntityType =
   | "deckCard"
   | "storageContainer"
   | "collectionCard"
-  | "collectionCardLocation";
+  | "collectionCardLocation"
+  | "tag";
 
 /**
  * Multiplexed stream event format.
@@ -29,7 +31,8 @@ export type MultiplexedStreamEvent =
   | { type: "deckCard"; event: DeckCardStreamEvent }
   | { type: "storageContainer"; event: StorageContainerStreamEvent }
   | { type: "collectionCard"; event: CollectionCardStreamEvent }
-  | { type: "collectionCardLocation"; event: CollectionCardLocationStreamEvent };
+  | { type: "collectionCardLocation"; event: CollectionCardLocationStreamEvent }
+  | { type: "tag"; event: TagStreamEvent };
 
 // =============================================================================
 // Async Iterable Merge Helper

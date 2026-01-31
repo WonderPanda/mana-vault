@@ -50,6 +50,13 @@
       "when": 1769711955916,
       "tag": "0006_pretty_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1769897555621,
+      "tag": "0007_worthless_justin_hammer",
+      "breakpoints": true
     }
   ]
 }

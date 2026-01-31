@@ -10,6 +10,7 @@ import type {
   CollectionCardDoc,
   CollectionCardLocationDoc,
   StorageContainerDoc,
+  TagDoc,
   ManaVaultDatabase,
 } from "./db";
 import type { AppRouterClient } from "@mana-vault/api/routers/index";
@@ -519,6 +520,7 @@ export interface MultiplexedReplicationStates {
     ReplicationCheckpoint
   >;
   scryfallCardReplicationState: RxReplicationState<ScryfallCardDoc, ReplicationCheckpoint>;
+  tagReplicationState: RxReplicationState<TagDoc, ReplicationCheckpoint>;
 }
 
 /**
@@ -683,6 +685,33 @@ export function setupReplicationsWithMultiplexedStream(
     console.error("Collection card location replication error:", error);
   });
 
+  // Set up tag replication with demultiplexed stream
+  const tagReplicationState = replicateRxCollection<TagDoc, ReplicationCheckpoint>({
+    collection: db.tags,
+    replicationIdentifier: "tag-pull-replication",
+    deletedField: "_deleted",
+    pull: {
+      async handler(checkpointOrNull, batchSize) {
+        const checkpoint = checkpointOrNull ?? null;
+        const response = await client.tags.sync.pull({ checkpoint, batchSize });
+        return {
+          documents: response.documents,
+          checkpoint: response.checkpoint ?? undefined,
+        };
+      },
+      batchSize: 50,
+      stream$: streams.tag$,
+    },
+    autoStart: true,
+    push: undefined,
+    live: true,
+    retryTime: 5000,
+  });
+
+  tagReplicationState.error$.subscribe((error) => {
+    console.error("Tag replication error:", error);
+  });
+
   // Set up scryfall card replication (pull-only, no live stream)
   // Scryfall cards don't use the multiplexed stream since they're triggered by deck card changes
   const scryfallCardReplicationState = replicateRxCollection<
@@ -719,6 +748,7 @@ export function setupReplicationsWithMultiplexedStream(
     collectionCardReplicationState,
     collectionCardLocationReplicationState,
     scryfallCardReplicationState,
+    tagReplicationState,
   };
 }
 

@@ -8,290 +8,309 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as SuccessRouteImport } from './routes/success'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as appAuthedRouteRouteImport } from './routes/(app)/_authed/route'
-import { Route as appAuthedSearchRouteImport } from './routes/(app)/_authed/search'
-import { Route as UserIdListSlugRouteImport } from './routes/$userId.list.$slug'
-import { Route as appAuthedListsIndexRouteImport } from './routes/(app)/_authed/lists/index'
-import { Route as appAuthedDecksIndexRouteImport } from './routes/(app)/_authed/decks/index'
-import { Route as appAuthedCardsIndexRouteImport } from './routes/(app)/_authed/cards/index'
-import { Route as appAuthedAdminIndexRouteImport } from './routes/(app)/_authed/admin/index'
-import { Route as appAuthedListsListIdRouteImport } from './routes/(app)/_authed/lists/$listId'
-import { Route as appAuthedDecksDeckIdRouteImport } from './routes/(app)/_authed/decks/$deckId'
-import { Route as appAuthedCardsCollectionIdRouteImport } from './routes/(app)/_authed/cards/$collectionId'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as SuccessRouteImport } from "./routes/success";
+import { Route as LoginRouteImport } from "./routes/login";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as appAuthedRouteRouteImport } from "./routes/(app)/_authed/route";
+import { Route as appAuthedSearchRouteImport } from "./routes/(app)/_authed/search";
+import { Route as UserIdListSlugRouteImport } from "./routes/$userId.list.$slug";
+import { Route as appAuthedSettingsIndexRouteImport } from "./routes/(app)/_authed/settings/index";
+import { Route as appAuthedListsIndexRouteImport } from "./routes/(app)/_authed/lists/index";
+import { Route as appAuthedDecksIndexRouteImport } from "./routes/(app)/_authed/decks/index";
+import { Route as appAuthedCardsIndexRouteImport } from "./routes/(app)/_authed/cards/index";
+import { Route as appAuthedAdminIndexRouteImport } from "./routes/(app)/_authed/admin/index";
+import { Route as appAuthedListsListIdRouteImport } from "./routes/(app)/_authed/lists/$listId";
+import { Route as appAuthedDecksDeckIdRouteImport } from "./routes/(app)/_authed/decks/$deckId";
+import { Route as appAuthedCardsCollectionIdRouteImport } from "./routes/(app)/_authed/cards/$collectionId";
 
 const SuccessRoute = SuccessRouteImport.update({
-  id: '/success',
-  path: '/success',
+  id: "/success",
+  path: "/success",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+  id: "/login",
+  path: "/login",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const appAuthedRouteRoute = appAuthedRouteRouteImport.update({
-  id: '/(app)/_authed',
+  id: "/(app)/_authed",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const appAuthedSearchRoute = appAuthedSearchRouteImport.update({
-  id: '/search',
-  path: '/search',
+  id: "/search",
+  path: "/search",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
+} as any);
 const UserIdListSlugRoute = UserIdListSlugRouteImport.update({
-  id: '/$userId/list/$slug',
-  path: '/$userId/list/$slug',
+  id: "/$userId/list/$slug",
+  path: "/$userId/list/$slug",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
+const appAuthedSettingsIndexRoute = appAuthedSettingsIndexRouteImport.update({
+  id: "/settings/",
+  path: "/settings/",
+  getParentRoute: () => appAuthedRouteRoute,
+} as any);
 const appAuthedListsIndexRoute = appAuthedListsIndexRouteImport.update({
-  id: '/lists/',
-  path: '/lists/',
+  id: "/lists/",
+  path: "/lists/",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
+} as any);
 const appAuthedDecksIndexRoute = appAuthedDecksIndexRouteImport.update({
-  id: '/decks/',
-  path: '/decks/',
+  id: "/decks/",
+  path: "/decks/",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
+} as any);
 const appAuthedCardsIndexRoute = appAuthedCardsIndexRouteImport.update({
-  id: '/cards/',
-  path: '/cards/',
+  id: "/cards/",
+  path: "/cards/",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
+} as any);
 const appAuthedAdminIndexRoute = appAuthedAdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
+  id: "/admin/",
+  path: "/admin/",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
+} as any);
 const appAuthedListsListIdRoute = appAuthedListsListIdRouteImport.update({
-  id: '/lists/$listId',
-  path: '/lists/$listId',
+  id: "/lists/$listId",
+  path: "/lists/$listId",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
+} as any);
 const appAuthedDecksDeckIdRoute = appAuthedDecksDeckIdRouteImport.update({
-  id: '/decks/$deckId',
-  path: '/decks/$deckId',
+  id: "/decks/$deckId",
+  path: "/decks/$deckId",
   getParentRoute: () => appAuthedRouteRoute,
-} as any)
-const appAuthedCardsCollectionIdRoute =
-  appAuthedCardsCollectionIdRouteImport.update({
-    id: '/cards/$collectionId',
-    path: '/cards/$collectionId',
-    getParentRoute: () => appAuthedRouteRoute,
-  } as any)
+} as any);
+const appAuthedCardsCollectionIdRoute = appAuthedCardsCollectionIdRouteImport.update({
+  id: "/cards/$collectionId",
+  path: "/cards/$collectionId",
+  getParentRoute: () => appAuthedRouteRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/success': typeof SuccessRoute
-  '/$userId/list/$slug': typeof UserIdListSlugRoute
-  '/search': typeof appAuthedSearchRoute
-  '/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
-  '/decks/$deckId': typeof appAuthedDecksDeckIdRoute
-  '/lists/$listId': typeof appAuthedListsListIdRoute
-  '/admin/': typeof appAuthedAdminIndexRoute
-  '/cards/': typeof appAuthedCardsIndexRoute
-  '/decks/': typeof appAuthedDecksIndexRoute
-  '/lists/': typeof appAuthedListsIndexRoute
+  "/": typeof IndexRoute;
+  "/login": typeof LoginRoute;
+  "/success": typeof SuccessRoute;
+  "/$userId/list/$slug": typeof UserIdListSlugRoute;
+  "/search": typeof appAuthedSearchRoute;
+  "/cards/$collectionId": typeof appAuthedCardsCollectionIdRoute;
+  "/decks/$deckId": typeof appAuthedDecksDeckIdRoute;
+  "/lists/$listId": typeof appAuthedListsListIdRoute;
+  "/admin/": typeof appAuthedAdminIndexRoute;
+  "/cards/": typeof appAuthedCardsIndexRoute;
+  "/decks/": typeof appAuthedDecksIndexRoute;
+  "/lists/": typeof appAuthedListsIndexRoute;
+  "/settings/": typeof appAuthedSettingsIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/success': typeof SuccessRoute
-  '/$userId/list/$slug': typeof UserIdListSlugRoute
-  '/search': typeof appAuthedSearchRoute
-  '/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
-  '/decks/$deckId': typeof appAuthedDecksDeckIdRoute
-  '/lists/$listId': typeof appAuthedListsListIdRoute
-  '/admin': typeof appAuthedAdminIndexRoute
-  '/cards': typeof appAuthedCardsIndexRoute
-  '/decks': typeof appAuthedDecksIndexRoute
-  '/lists': typeof appAuthedListsIndexRoute
+  "/": typeof IndexRoute;
+  "/login": typeof LoginRoute;
+  "/success": typeof SuccessRoute;
+  "/$userId/list/$slug": typeof UserIdListSlugRoute;
+  "/search": typeof appAuthedSearchRoute;
+  "/cards/$collectionId": typeof appAuthedCardsCollectionIdRoute;
+  "/decks/$deckId": typeof appAuthedDecksDeckIdRoute;
+  "/lists/$listId": typeof appAuthedListsListIdRoute;
+  "/admin": typeof appAuthedAdminIndexRoute;
+  "/cards": typeof appAuthedCardsIndexRoute;
+  "/decks": typeof appAuthedDecksIndexRoute;
+  "/lists": typeof appAuthedListsIndexRoute;
+  "/settings": typeof appAuthedSettingsIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/success': typeof SuccessRoute
-  '/(app)/_authed': typeof appAuthedRouteRouteWithChildren
-  '/$userId/list/$slug': typeof UserIdListSlugRoute
-  '/(app)/_authed/search': typeof appAuthedSearchRoute
-  '/(app)/_authed/cards/$collectionId': typeof appAuthedCardsCollectionIdRoute
-  '/(app)/_authed/decks/$deckId': typeof appAuthedDecksDeckIdRoute
-  '/(app)/_authed/lists/$listId': typeof appAuthedListsListIdRoute
-  '/(app)/_authed/admin/': typeof appAuthedAdminIndexRoute
-  '/(app)/_authed/cards/': typeof appAuthedCardsIndexRoute
-  '/(app)/_authed/decks/': typeof appAuthedDecksIndexRoute
-  '/(app)/_authed/lists/': typeof appAuthedListsIndexRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/login": typeof LoginRoute;
+  "/success": typeof SuccessRoute;
+  "/(app)/_authed": typeof appAuthedRouteRouteWithChildren;
+  "/$userId/list/$slug": typeof UserIdListSlugRoute;
+  "/(app)/_authed/search": typeof appAuthedSearchRoute;
+  "/(app)/_authed/cards/$collectionId": typeof appAuthedCardsCollectionIdRoute;
+  "/(app)/_authed/decks/$deckId": typeof appAuthedDecksDeckIdRoute;
+  "/(app)/_authed/lists/$listId": typeof appAuthedListsListIdRoute;
+  "/(app)/_authed/admin/": typeof appAuthedAdminIndexRoute;
+  "/(app)/_authed/cards/": typeof appAuthedCardsIndexRoute;
+  "/(app)/_authed/decks/": typeof appAuthedDecksIndexRoute;
+  "/(app)/_authed/lists/": typeof appAuthedListsIndexRoute;
+  "/(app)/_authed/settings/": typeof appAuthedSettingsIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/login'
-    | '/success'
-    | '/$userId/list/$slug'
-    | '/search'
-    | '/cards/$collectionId'
-    | '/decks/$deckId'
-    | '/lists/$listId'
-    | '/admin/'
-    | '/cards/'
-    | '/decks/'
-    | '/lists/'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/login"
+    | "/success"
+    | "/$userId/list/$slug"
+    | "/search"
+    | "/cards/$collectionId"
+    | "/decks/$deckId"
+    | "/lists/$listId"
+    | "/admin/"
+    | "/cards/"
+    | "/decks/"
+    | "/lists/"
+    | "/settings/";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/login'
-    | '/success'
-    | '/$userId/list/$slug'
-    | '/search'
-    | '/cards/$collectionId'
-    | '/decks/$deckId'
-    | '/lists/$listId'
-    | '/admin'
-    | '/cards'
-    | '/decks'
-    | '/lists'
+    | "/"
+    | "/login"
+    | "/success"
+    | "/$userId/list/$slug"
+    | "/search"
+    | "/cards/$collectionId"
+    | "/decks/$deckId"
+    | "/lists/$listId"
+    | "/admin"
+    | "/cards"
+    | "/decks"
+    | "/lists"
+    | "/settings";
   id:
-    | '__root__'
-    | '/'
-    | '/login'
-    | '/success'
-    | '/(app)/_authed'
-    | '/$userId/list/$slug'
-    | '/(app)/_authed/search'
-    | '/(app)/_authed/cards/$collectionId'
-    | '/(app)/_authed/decks/$deckId'
-    | '/(app)/_authed/lists/$listId'
-    | '/(app)/_authed/admin/'
-    | '/(app)/_authed/cards/'
-    | '/(app)/_authed/decks/'
-    | '/(app)/_authed/lists/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/login"
+    | "/success"
+    | "/(app)/_authed"
+    | "/$userId/list/$slug"
+    | "/(app)/_authed/search"
+    | "/(app)/_authed/cards/$collectionId"
+    | "/(app)/_authed/decks/$deckId"
+    | "/(app)/_authed/lists/$listId"
+    | "/(app)/_authed/admin/"
+    | "/(app)/_authed/cards/"
+    | "/(app)/_authed/decks/"
+    | "/(app)/_authed/lists/"
+    | "/(app)/_authed/settings/";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  LoginRoute: typeof LoginRoute
-  SuccessRoute: typeof SuccessRoute
-  appAuthedRouteRoute: typeof appAuthedRouteRouteWithChildren
-  UserIdListSlugRoute: typeof UserIdListSlugRoute
+  IndexRoute: typeof IndexRoute;
+  LoginRoute: typeof LoginRoute;
+  SuccessRoute: typeof SuccessRoute;
+  appAuthedRouteRoute: typeof appAuthedRouteRouteWithChildren;
+  UserIdListSlugRoute: typeof UserIdListSlugRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/success': {
-      id: '/success'
-      path: '/success'
-      fullPath: '/success'
-      preLoaderRoute: typeof SuccessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(app)/_authed': {
-      id: '/(app)/_authed'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof appAuthedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(app)/_authed/search': {
-      id: '/(app)/_authed/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof appAuthedSearchRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/$userId/list/$slug': {
-      id: '/$userId/list/$slug'
-      path: '/$userId/list/$slug'
-      fullPath: '/$userId/list/$slug'
-      preLoaderRoute: typeof UserIdListSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(app)/_authed/lists/': {
-      id: '/(app)/_authed/lists/'
-      path: '/lists'
-      fullPath: '/lists/'
-      preLoaderRoute: typeof appAuthedListsIndexRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/(app)/_authed/decks/': {
-      id: '/(app)/_authed/decks/'
-      path: '/decks'
-      fullPath: '/decks/'
-      preLoaderRoute: typeof appAuthedDecksIndexRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/(app)/_authed/cards/': {
-      id: '/(app)/_authed/cards/'
-      path: '/cards'
-      fullPath: '/cards/'
-      preLoaderRoute: typeof appAuthedCardsIndexRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/(app)/_authed/admin/': {
-      id: '/(app)/_authed/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof appAuthedAdminIndexRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/(app)/_authed/lists/$listId': {
-      id: '/(app)/_authed/lists/$listId'
-      path: '/lists/$listId'
-      fullPath: '/lists/$listId'
-      preLoaderRoute: typeof appAuthedListsListIdRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/(app)/_authed/decks/$deckId': {
-      id: '/(app)/_authed/decks/$deckId'
-      path: '/decks/$deckId'
-      fullPath: '/decks/$deckId'
-      preLoaderRoute: typeof appAuthedDecksDeckIdRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
-    '/(app)/_authed/cards/$collectionId': {
-      id: '/(app)/_authed/cards/$collectionId'
-      path: '/cards/$collectionId'
-      fullPath: '/cards/$collectionId'
-      preLoaderRoute: typeof appAuthedCardsCollectionIdRouteImport
-      parentRoute: typeof appAuthedRouteRoute
-    }
+    "/success": {
+      id: "/success";
+      path: "/success";
+      fullPath: "/success";
+      preLoaderRoute: typeof SuccessRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/login": {
+      id: "/login";
+      path: "/login";
+      fullPath: "/login";
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/(app)/_authed": {
+      id: "/(app)/_authed";
+      path: "";
+      fullPath: "";
+      preLoaderRoute: typeof appAuthedRouteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/(app)/_authed/search": {
+      id: "/(app)/_authed/search";
+      path: "/search";
+      fullPath: "/search";
+      preLoaderRoute: typeof appAuthedSearchRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/$userId/list/$slug": {
+      id: "/$userId/list/$slug";
+      path: "/$userId/list/$slug";
+      fullPath: "/$userId/list/$slug";
+      preLoaderRoute: typeof UserIdListSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/(app)/_authed/settings/": {
+      id: "/(app)/_authed/settings/";
+      path: "/settings";
+      fullPath: "/settings/";
+      preLoaderRoute: typeof appAuthedSettingsIndexRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/lists/": {
+      id: "/(app)/_authed/lists/";
+      path: "/lists";
+      fullPath: "/lists/";
+      preLoaderRoute: typeof appAuthedListsIndexRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/decks/": {
+      id: "/(app)/_authed/decks/";
+      path: "/decks";
+      fullPath: "/decks/";
+      preLoaderRoute: typeof appAuthedDecksIndexRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/cards/": {
+      id: "/(app)/_authed/cards/";
+      path: "/cards";
+      fullPath: "/cards/";
+      preLoaderRoute: typeof appAuthedCardsIndexRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/admin/": {
+      id: "/(app)/_authed/admin/";
+      path: "/admin";
+      fullPath: "/admin/";
+      preLoaderRoute: typeof appAuthedAdminIndexRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/lists/$listId": {
+      id: "/(app)/_authed/lists/$listId";
+      path: "/lists/$listId";
+      fullPath: "/lists/$listId";
+      preLoaderRoute: typeof appAuthedListsListIdRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/decks/$deckId": {
+      id: "/(app)/_authed/decks/$deckId";
+      path: "/decks/$deckId";
+      fullPath: "/decks/$deckId";
+      preLoaderRoute: typeof appAuthedDecksDeckIdRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
+    "/(app)/_authed/cards/$collectionId": {
+      id: "/(app)/_authed/cards/$collectionId";
+      path: "/cards/$collectionId";
+      fullPath: "/cards/$collectionId";
+      preLoaderRoute: typeof appAuthedCardsCollectionIdRouteImport;
+      parentRoute: typeof appAuthedRouteRoute;
+    };
   }
 }
 
 interface appAuthedRouteRouteChildren {
-  appAuthedSearchRoute: typeof appAuthedSearchRoute
-  appAuthedCardsCollectionIdRoute: typeof appAuthedCardsCollectionIdRoute
-  appAuthedDecksDeckIdRoute: typeof appAuthedDecksDeckIdRoute
-  appAuthedListsListIdRoute: typeof appAuthedListsListIdRoute
-  appAuthedAdminIndexRoute: typeof appAuthedAdminIndexRoute
-  appAuthedCardsIndexRoute: typeof appAuthedCardsIndexRoute
-  appAuthedDecksIndexRoute: typeof appAuthedDecksIndexRoute
-  appAuthedListsIndexRoute: typeof appAuthedListsIndexRoute
+  appAuthedSearchRoute: typeof appAuthedSearchRoute;
+  appAuthedCardsCollectionIdRoute: typeof appAuthedCardsCollectionIdRoute;
+  appAuthedDecksDeckIdRoute: typeof appAuthedDecksDeckIdRoute;
+  appAuthedListsListIdRoute: typeof appAuthedListsListIdRoute;
+  appAuthedAdminIndexRoute: typeof appAuthedAdminIndexRoute;
+  appAuthedCardsIndexRoute: typeof appAuthedCardsIndexRoute;
+  appAuthedDecksIndexRoute: typeof appAuthedDecksIndexRoute;
+  appAuthedListsIndexRoute: typeof appAuthedListsIndexRoute;
+  appAuthedSettingsIndexRoute: typeof appAuthedSettingsIndexRoute;
 }
 
 const appAuthedRouteRouteChildren: appAuthedRouteRouteChildren = {
@@ -303,11 +322,12 @@ const appAuthedRouteRouteChildren: appAuthedRouteRouteChildren = {
   appAuthedCardsIndexRoute: appAuthedCardsIndexRoute,
   appAuthedDecksIndexRoute: appAuthedDecksIndexRoute,
   appAuthedListsIndexRoute: appAuthedListsIndexRoute,
-}
+  appAuthedSettingsIndexRoute: appAuthedSettingsIndexRoute,
+};
 
 const appAuthedRouteRouteWithChildren = appAuthedRouteRoute._addFileChildren(
   appAuthedRouteRouteChildren,
-)
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -315,7 +335,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuccessRoute: SuccessRoute,
   appAuthedRouteRoute: appAuthedRouteRouteWithChildren,
   UserIdListSlugRoute: UserIdListSlugRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

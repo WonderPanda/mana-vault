@@ -92,9 +92,8 @@ const navItems = linkOptions([
   // { to: "/search", label: "Search", icon: Search },
   { to: "/decks", label: "Decks", icon: Layers },
   { to: "/lists", label: "Lists", icon: ListChecks },
+  { to: "/settings", label: "Settings", icon: Settings },
 ]);
-
-const adminNavItem = linkOptions([{ to: "/admin", label: "Admin", icon: Settings }])[0]!;
 
 function AuthedLayout() {
   const { session, db } = Route.useRouteContext();
@@ -147,22 +146,6 @@ function AuthedLayout() {
                   </li>
                 );
               })}
-              {isAdmin && (
-                <li>
-                  <Link
-                    to={adminNavItem.to}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                      matchRoute({ to: adminNavItem.to, fuzzy: true })
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
-                    )}
-                  >
-                    <adminNavItem.icon className="h-5 w-5" />
-                    {adminNavItem.label}
-                  </Link>
-                </li>
-              )}
             </ul>
           </nav>
 
@@ -182,15 +165,26 @@ function AuthedLayout() {
                 <PopoverHeader>
                   <PopoverTitle>Account</PopoverTitle>
                 </PopoverHeader>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={handleSignOut}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
-                </Button>
+                <div className="flex flex-col gap-1">
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Admin
+                    </Link>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </Button>
+                </div>
               </PopoverContent>
             </Popover>
           </div>
@@ -221,22 +215,6 @@ function AuthedLayout() {
                 </li>
               );
             })}
-            {isAdmin && (
-              <li>
-                <Link
-                  to={adminNavItem.to}
-                  className={cn(
-                    "flex flex-col items-center gap-1 px-4 py-2 text-xs transition-colors",
-                    matchRoute({ to: adminNavItem.to, fuzzy: true })
-                      ? "text-primary"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  <adminNavItem.icon className="h-5 w-5" />
-                  <span>{adminNavItem.label}</span>
-                </Link>
-              </li>
-            )}
             <li>
               <Popover>
                 <PopoverTrigger className="flex flex-col items-center gap-1 px-4 py-2 text-xs text-muted-foreground transition-colors">
@@ -248,15 +226,26 @@ function AuthedLayout() {
                     <PopoverTitle>{session.user.name}</PopoverTitle>
                     <p className="text-muted-foreground">{session.user.email}</p>
                   </PopoverHeader>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={handleSignOut}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </Button>
+                  <div className="flex flex-col gap-1">
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        Admin
+                      </Link>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={handleSignOut}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </Button>
+                  </div>
                 </PopoverContent>
               </Popover>
             </li>

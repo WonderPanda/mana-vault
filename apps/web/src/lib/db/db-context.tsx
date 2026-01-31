@@ -11,6 +11,7 @@ interface DbContextValue {
   collectionCardCollection: DbInstance["collectionCardCollection"];
   collectionCardLocationCollection: DbInstance["collectionCardLocationCollection"];
   scryfallCardCollection: DbInstance["scryfallCardCollection"];
+  tagCollection: DbInstance["tagCollection"];
 }
 
 const DbContext = createContext<DbContextValue | null>(null);
@@ -34,6 +35,7 @@ export function DbProvider({ children, db }: DbProviderProps) {
         collectionCardCollection: db.collectionCardCollection,
         collectionCardLocationCollection: db.collectionCardLocationCollection,
         scryfallCardCollection: db.scryfallCardCollection,
+        tagCollection: db.tagCollection,
       }}
     >
       {children}

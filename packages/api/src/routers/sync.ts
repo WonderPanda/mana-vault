@@ -8,6 +8,7 @@ import {
   collectionCardPublisher,
   collectionCardLocationPublisher,
 } from "../publishers/collection-publisher";
+import { tagPublisher } from "../publishers/tag-publisher";
 import {
   mergeAsyncIterables,
   type MultiplexedStreamEvent,
@@ -50,6 +51,7 @@ export const syncRouter = {
         ["storageContainer", storageContainerPublisher.subscribe(userId, { signal })],
         ["collectionCard", collectionCardPublisher.subscribe(userId, { signal })],
         ["collectionCardLocation", collectionCardLocationPublisher.subscribe(userId, { signal })],
+        ["tag", tagPublisher.subscribe(userId, { signal })],
       ]);
 
       // Merge all publisher streams and yield typed events

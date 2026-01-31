@@ -185,6 +185,22 @@ const storageContainerSchema: RxJsonSchema<StorageContainerDoc> = {
   indexes: ["userId"],
 };
 
+const tagSchema: RxJsonSchema<TagDoc> = {
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    name: { type: "string" },
+    color: { type: ["string", "null"] },
+    isSystem: { type: "boolean" },
+    createdAt: { type: "number" },
+    updatedAt: { type: "number" },
+    _deleted: { type: "boolean" },
+  },
+  required: ["id", "name", "isSystem", "createdAt", "updatedAt", "_deleted"],
+};
+
 const collectionCardLocationSchema: RxJsonSchema<CollectionCardLocationDoc> = {
   version: 1, // Bumped version to handle new updatedAt field
   primaryKey: "id",
@@ -283,6 +299,16 @@ export interface CollectionCardDoc {
   _deleted: boolean; // Required for RxDB replication
 }
 
+export interface TagDoc {
+  id: string;
+  name: string;
+  color: string | null;
+  isSystem: boolean;
+  createdAt: number;
+  updatedAt: number;
+  _deleted: boolean;
+}
+
 export interface CollectionCardLocationDoc {
   id: string;
   collectionCardId: string;
@@ -316,6 +342,7 @@ export type DatabaseCollections = {
   collection_cards: RxCollection<CollectionCardDoc>;
   collection_card_locations: RxCollection<CollectionCardLocationDoc>;
   storage_containers: RxCollection<StorageContainerDoc>;
+  tags: RxCollection<TagDoc>;
 };
 
 export type ManaVaultDatabase = RxDatabase<DatabaseCollections>;
@@ -370,6 +397,9 @@ async function initializeDb() {
     storage_containers: {
       schema: storageContainerSchema,
     },
+    tags: {
+      schema: tagSchema,
+    },
   });
 
   // Set up replication for all collections using a single multiplexed SSE stream
@@ -381,6 +411,7 @@ async function initializeDb() {
     collectionCardReplicationState,
     collectionCardLocationReplicationState,
     scryfallCardReplicationState,
+    tagReplicationState,
   } = setupReplicationsWithMultiplexedStream(database, client);
 
   // When deck cards or collection cards change, trigger a scryfall card sync to ensure
@@ -434,6 +465,12 @@ async function initializeDb() {
     }),
   );
 
+  const tagCollection = createCollection(
+    rxdbCollectionOptions({
+      rxCollection: database.tags,
+    }),
+  );
+
   return {
     rxdb: database,
     deckReplicationState,
@@ -442,12 +479,14 @@ async function initializeDb() {
     collectionCardReplicationState,
     collectionCardLocationReplicationState,
     scryfallCardReplicationState,
+    tagReplicationState,
     deckCollection,
     deckCardCollection,
     storageContainerCollection,
     collectionCardCollection,
     collectionCardLocationCollection,
     scryfallCardCollection,
+    tagCollection,
   };
 }
 

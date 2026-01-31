@@ -7,6 +7,7 @@ import type {
   StorageContainerDoc,
   CollectionCardDoc,
   CollectionCardLocationDoc,
+  TagDoc,
 } from "./db";
 import type { ReplicationCheckpoint } from "./replication";
 import type { AppRouterClient } from "@mana-vault/api/routers/index";
@@ -26,6 +27,7 @@ export interface DemultiplexedStreams {
   collectionCardLocation$: Subject<
     RxReplicationPullStreamItem<CollectionCardLocationDoc, ReplicationCheckpoint>
   >;
+  tag$: Subject<RxReplicationPullStreamItem<TagDoc, ReplicationCheckpoint>>;
 }
 
 /**
@@ -48,6 +50,7 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
     storageContainer$: new Subject(),
     collectionCard$: new Subject(),
     collectionCardLocation$: new Subject(),
+    tag$: new Subject(),
   };
 
   // Helper to emit RESYNC to all streams
@@ -57,6 +60,7 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
     streams.storageContainer$.next("RESYNC");
     streams.collectionCard$.next("RESYNC");
     streams.collectionCardLocation$.next("RESYNC");
+    streams.tag$.next("RESYNC");
   };
 
   // Start consuming the multiplexed stream in the background
@@ -85,6 +89,9 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
               break;
             case "collectionCardLocation":
               streams.collectionCardLocation$.next("RESYNC");
+              break;
+            case "tag":
+              streams.tag$.next("RESYNC");
               break;
           }
           continue;
@@ -128,6 +135,12 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
               break;
             case "collectionCardLocation":
               streams.collectionCardLocation$.next({
+                documents: event.documents,
+                checkpoint: event.checkpoint,
+              });
+              break;
+            case "tag":
+              streams.tag$.next({
                 documents: event.documents,
                 checkpoint: event.checkpoint,
               });

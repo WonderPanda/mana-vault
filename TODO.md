@@ -1,0 +1,8 @@
+- [] Basic deck tag management
+- [] Ability to move cards between decks/collections
+- [] Local search using scryfall syntax
+- [] Local first mutations with sync
+- [] Better logging on backend
+- [] Pattern for backend analytics
+- [] Feature flags
+- [] Beta feature opt in
