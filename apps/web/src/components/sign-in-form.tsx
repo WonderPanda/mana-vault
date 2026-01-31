@@ -37,7 +37,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
               navigate({
                 to: "/cards",
               });
-            }, 10);
+            }, 50);
             toast.success("Sign in successful");
           },
           onError: (error) => {

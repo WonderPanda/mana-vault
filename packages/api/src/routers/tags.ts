@@ -5,7 +5,11 @@ import { and, asc, eq, gt, or } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
-import { tagPublisher, type TagStreamEvent } from "../publishers/tag-publisher";
+import {
+  tagPublisher,
+  toTagReplicationDoc,
+  type TagStreamEvent,
+} from "../publishers/tag-publisher";
 
 const checkpointSchema = z
   .object({
@@ -14,8 +18,112 @@ const checkpointSchema = z
   })
   .nullable();
 
+const tagDocSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().nullable(),
+  isSystem: z.boolean(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  _deleted: z.boolean(),
+});
+
 export const tagsRouter = {
   sync: {
+    push: protectedProcedure
+      .input(
+        z.object({
+          rows: z.array(
+            z.object({
+              newDocumentState: tagDocSchema,
+              assumedMasterState: tagDocSchema.nullable(),
+            }),
+          ),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { rows } = input;
+        const conflicts: z.infer<typeof tagDocSchema>[] = [];
+        const changedDocs: z.infer<typeof tagDocSchema>[] = [];
+
+        for (const row of rows) {
+          const { newDocumentState, assumedMasterState } = row;
+
+          // Look up current master state
+          const [currentRow] = await db
+            .select()
+            .from(tag)
+            .where(and(eq(tag.id, newDocumentState.id), eq(tag.userId, userId)))
+            .limit(1);
+
+          if (!currentRow && !assumedMasterState) {
+            // New document — insert
+            const now = new Date();
+            const [inserted] = await db
+              .insert(tag)
+              .values({
+                id: newDocumentState.id,
+                userId,
+                name: newDocumentState.name,
+                color: newDocumentState.color,
+                isSystem: newDocumentState.isSystem,
+                createdAt: now,
+                updatedAt: now,
+                deletedAt: newDocumentState._deleted ? now : null,
+              })
+              .returning();
+
+            if (inserted) {
+              changedDocs.push(toTagReplicationDoc(inserted, newDocumentState._deleted));
+            }
+          } else if (currentRow) {
+            // Check if assumed state matches current master (compare updatedAt)
+            const masterUpdatedAt = currentRow.updatedAt.getTime();
+            const assumedUpdatedAt = assumedMasterState?.updatedAt;
+
+            if (assumedUpdatedAt === masterUpdatedAt) {
+              // Match — apply the write
+              const [updated] = await db
+                .update(tag)
+                .set({
+                  name: newDocumentState.name,
+                  color: newDocumentState.color,
+                  isSystem: newDocumentState.isSystem,
+                  deletedAt: newDocumentState._deleted ? new Date() : null,
+                })
+                .where(and(eq(tag.id, newDocumentState.id), eq(tag.userId, userId)))
+                .returning();
+
+              if (updated) {
+                changedDocs.push(toTagReplicationDoc(updated, newDocumentState._deleted));
+              }
+            } else {
+              // Conflict — return current master state
+              conflicts.push(toTagReplicationDoc(currentRow, currentRow.deletedAt !== null));
+            }
+          } else {
+            // Row doesn't exist but client assumed it did — conflict (row was deleted)
+            // Return the assumed state as deleted so client knows it's gone
+            if (assumedMasterState) {
+              conflicts.push({ ...assumedMasterState, _deleted: true });
+            }
+          }
+        }
+
+        // Publish changed docs to SSE stream for other clients
+        if (changedDocs.length > 0) {
+          const lastDoc = changedDocs[changedDocs.length - 1]!;
+          const event: TagStreamEvent = {
+            documents: changedDocs,
+            checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
+          };
+          await tagPublisher.publish(userId, event);
+        }
+
+        return { conflicts };
+      }),
+
     pull: protectedProcedure
       .input(
         z.object({

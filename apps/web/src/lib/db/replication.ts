@@ -688,7 +688,7 @@ export function setupReplicationsWithMultiplexedStream(
   // Set up tag replication with demultiplexed stream
   const tagReplicationState = replicateRxCollection<TagDoc, ReplicationCheckpoint>({
     collection: db.tags,
-    replicationIdentifier: "tag-pull-replication",
+    replicationIdentifier: "tag-replication",
     deletedField: "_deleted",
     pull: {
       async handler(checkpointOrNull, batchSize) {
@@ -702,8 +702,19 @@ export function setupReplicationsWithMultiplexedStream(
       batchSize: 50,
       stream$: streams.tag$,
     },
+    push: {
+      async handler(changeRows) {
+        const response = await client.tags.sync.push({
+          rows: changeRows.map((row) => ({
+            newDocumentState: row.newDocumentState,
+            assumedMasterState: row.assumedMasterState ?? null,
+          })),
+        });
+        return response.conflicts;
+      },
+      batchSize: 10,
+    },
     autoStart: true,
-    push: undefined,
     live: true,
     retryTime: 5000,
   });

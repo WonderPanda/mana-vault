@@ -16,7 +16,9 @@
       "Bash(agent-browser console:*)",
       "Bash(agent-browser evaluate:*)",
       "Bash(agent-browser navigate:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:rxdb.info)",
+      "Bash(wc:*)"
     ]
   }
 }
