@@ -18,7 +18,8 @@
       "Bash(agent-browser navigate:*)",
       "Bash(ls:*)",
       "WebFetch(domain:rxdb.info)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(cat:*)"
     ]
   }
 }

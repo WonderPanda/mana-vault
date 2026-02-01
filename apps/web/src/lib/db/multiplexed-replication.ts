@@ -30,6 +30,16 @@ export interface DemultiplexedStreams {
   tag$: Subject<RxReplicationPullStreamItem<TagDoc, ReplicationCheckpoint>>;
 }
 
+// Maps entity type strings from the multiplexed stream to DemultiplexedStreams keys
+const entityTypeToStreamKey: Record<string, keyof DemultiplexedStreams> = {
+  deck: "deck$",
+  deckCard: "deckCard$",
+  storageContainer: "storageContainer$",
+  collectionCard: "collectionCard$",
+  collectionCardLocation: "collectionCardLocation$",
+  tag: "tag$",
+};
+
 /**
  * Creates demultiplexed streams from the single multiplexed SSE endpoint.
  *
@@ -37,8 +47,6 @@ export interface DemultiplexedStreams {
  * 1. Connects to the multiplexed sync.stream endpoint
  * 2. Routes incoming events to the appropriate Subject based on entity type
  * 3. Handles connection errors by emitting RESYNC to all streams
- *
- * The returned streams can be passed to RxDB's replicateRxCollection as pull.stream$.
  *
  * @param client - The oRPC client instance
  * @returns Object containing Subject streams for each entity type
@@ -53,15 +61,7 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
     tag$: new Subject(),
   };
 
-  // Helper to emit RESYNC to all streams
-  const emitResyncToAll = () => {
-    streams.deck$.next("RESYNC");
-    streams.deckCard$.next("RESYNC");
-    streams.storageContainer$.next("RESYNC");
-    streams.collectionCard$.next("RESYNC");
-    streams.collectionCardLocation$.next("RESYNC");
-    streams.tag$.next("RESYNC");
-  };
+  const allStreams = Object.values(streams);
 
   // Start consuming the multiplexed stream in the background
   (async () => {
@@ -70,82 +70,28 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
 
       for await (const multiplexedEvent of iterator) {
         const { type, event } = multiplexedEvent;
+        const streamKey = entityTypeToStreamKey[type];
+        if (!streamKey) continue;
 
-        // Handle RESYNC signal (used after bulk imports)
+        const stream = streams[streamKey] as Subject<any>;
+
         if (event === "RESYNC") {
           console.log(`[Multiplexed Stream] Received RESYNC for ${type}`);
-          switch (type) {
-            case "deck":
-              streams.deck$.next("RESYNC");
-              break;
-            case "deckCard":
-              streams.deckCard$.next("RESYNC");
-              break;
-            case "storageContainer":
-              streams.storageContainer$.next("RESYNC");
-              break;
-            case "collectionCard":
-              streams.collectionCard$.next("RESYNC");
-              break;
-            case "collectionCardLocation":
-              streams.collectionCardLocation$.next("RESYNC");
-              break;
-            case "tag":
-              streams.tag$.next("RESYNC");
-              break;
-          }
+          stream.next("RESYNC");
           continue;
         }
 
-        // For document events, only emit if checkpoint is non-null
-        // (RxDB expects checkpoint in stream events)
+        // Only emit if checkpoint is non-null (RxDB expects checkpoint in stream events)
         if (event.checkpoint !== null) {
-          // Debug: log deletions
           const deletedDocs = event.documents.filter((d: { _deleted: boolean }) => d._deleted);
           if (deletedDocs.length > 0) {
             console.log(`[Multiplexed Stream] Received deleted ${type} documents:`, deletedDocs);
           }
 
-          // Route to appropriate stream based on type
-          // Each case has proper type narrowing from the discriminated union
-          switch (type) {
-            case "deck":
-              streams.deck$.next({
-                documents: event.documents,
-                checkpoint: event.checkpoint,
-              });
-              break;
-            case "deckCard":
-              streams.deckCard$.next({
-                documents: event.documents,
-                checkpoint: event.checkpoint,
-              });
-              break;
-            case "storageContainer":
-              streams.storageContainer$.next({
-                documents: event.documents,
-                checkpoint: event.checkpoint,
-              });
-              break;
-            case "collectionCard":
-              streams.collectionCard$.next({
-                documents: event.documents,
-                checkpoint: event.checkpoint,
-              });
-              break;
-            case "collectionCardLocation":
-              streams.collectionCardLocation$.next({
-                documents: event.documents,
-                checkpoint: event.checkpoint,
-              });
-              break;
-            case "tag":
-              streams.tag$.next({
-                documents: event.documents,
-                checkpoint: event.checkpoint,
-              });
-              break;
-          }
+          stream.next({
+            documents: event.documents,
+            checkpoint: event.checkpoint,
+          });
         }
       }
     } catch (error) {
@@ -153,7 +99,9 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
         "[Multiplexed Stream] Connection error, triggering RESYNC on all streams:",
         error,
       );
-      emitResyncToAll();
+      for (const stream of allStreams) {
+        stream.next("RESYNC");
+      }
     }
   })();
 

@@ -5,9 +5,15 @@ import { createCollection } from "@tanstack/react-db";
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection";
 
 import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
+import type {
+  DeckReplicationDoc,
+  DeckCardReplicationDoc,
+  StorageContainerReplicationDoc,
+  CollectionCardReplicationDoc,
+  TagReplicationDoc,
+} from "@mana-vault/api/publishers/replication-types";
 
 import { setupReplicationsWithMultiplexedStream } from "./replication";
-import type { ReplicationCheckpoint } from "./replication";
 import { client } from "@/utils/orpc";
 
 // Add migration plugin for schema version changes
@@ -223,7 +229,16 @@ const collectionCardLocationSchema: RxJsonSchema<CollectionCardLocationDoc> = {
 // =============================================================================
 // TypeScript Types
 // =============================================================================
+// Types that match the server replication format are imported from the shared
+// replication-types package. Types with client-specific differences are defined here.
 
+export type DeckDoc = DeckReplicationDoc;
+export type DeckCardDoc = DeckCardReplicationDoc;
+export type StorageContainerDoc = StorageContainerReplicationDoc;
+export type CollectionCardDoc = CollectionCardReplicationDoc;
+export type TagDoc = TagReplicationDoc;
+
+// ScryfallCardDoc differs from server: cmc is nullable on client (RxDB schema allows null)
 export interface ScryfallCardDoc {
   id: string;
   oracleId: string;
@@ -246,89 +261,18 @@ export interface ScryfallCardDoc {
   dataJson: string | null;
   createdAt: number;
   updatedAt: number;
-  _deleted: boolean; // Required for RxDB replication
-}
-
-export interface DeckDoc {
-  id: string;
-  userId: string;
-  name: string;
-  format: string;
-  status: string;
-  archetype: string | null;
-  colorIdentity: string | null;
-  description: string | null;
-  isPublic: boolean;
-  sortOrder: number;
-  createdAt: number;
-  updatedAt: number;
-  _deleted: boolean; // Required for RxDB replication
-}
-
-export interface DeckCardDoc {
-  id: string;
-  deckId: string;
-  oracleId: string;
-  preferredScryfallId: string | null;
-  quantity: number;
-  board: string;
-  isCommander: boolean;
-  isCompanion: boolean;
-  collectionCardId: string | null;
-  isProxy: boolean;
-  sortOrder: number;
-  createdAt: number;
-  updatedAt: number;
-  _deleted: boolean; // Required for RxDB replication
-}
-
-export interface CollectionCardDoc {
-  id: string;
-  userId: string;
-  scryfallCardId: string;
-  condition: string;
-  isFoil: boolean;
-  language: string;
-  notes: string | null;
-  acquiredAt: number | null;
-  acquiredFrom: string | null;
-  status: string;
-  removedAt: number | null;
-  createdAt: number;
-  updatedAt: number;
-  _deleted: boolean; // Required for RxDB replication
-}
-
-export interface TagDoc {
-  id: string;
-  name: string;
-  color: string | null;
-  isSystem: boolean;
-  createdAt: number;
-  updatedAt: number;
   _deleted: boolean;
 }
 
+// CollectionCardLocationDoc differs from server: updatedAt is optional for backwards compat
 export interface CollectionCardLocationDoc {
   id: string;
   collectionCardId: string;
   storageContainerId: string | null;
   deckId: string | null;
   assignedAt: number;
-  updatedAt?: number; // Used for sync checkpoint (optional for backwards compat)
-  _deleted: boolean; // Required for RxDB replication
-}
-
-export interface StorageContainerDoc {
-  id: string;
-  userId: string;
-  name: string;
-  type: string;
-  description: string | null;
-  sortOrder: number;
-  createdAt: number;
-  updatedAt: number;
-  _deleted: boolean; // Required for RxDB replication
+  updatedAt?: number;
+  _deleted: boolean;
 }
 
 // =============================================================================

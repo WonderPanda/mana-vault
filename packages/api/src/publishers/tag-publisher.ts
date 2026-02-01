@@ -1,27 +1,14 @@
 import { EventPublisher } from "@orpc/server";
 
-// =============================================================================
-// Tag Replication Types
-// =============================================================================
+import type { TagReplicationDoc, ReplicationCheckpoint } from "./replication-types";
+import { toReplicationDoc } from "./to-replication-doc";
 
-export interface TagReplicationDoc {
-  id: string;
-  name: string;
-  color: string | null;
-  isSystem: boolean;
-  createdAt: number;
-  updatedAt: number;
-  _deleted: boolean;
-}
-
-export interface TagReplicationCheckpoint {
-  id: string;
-  updatedAt: number;
-}
+// Re-export types for consumers
+export type { TagReplicationDoc } from "./replication-types";
 
 export type TagStreamEvent = {
   documents: TagReplicationDoc[];
-  checkpoint: TagReplicationCheckpoint | null;
+  checkpoint: ReplicationCheckpoint | null;
 };
 
 export const tagPublisher = new EventPublisher<Record<string, TagStreamEvent>>();
@@ -37,13 +24,5 @@ export function toTagReplicationDoc(
   },
   deleted = false,
 ): TagReplicationDoc {
-  return {
-    id: doc.id,
-    name: doc.name,
-    color: doc.color,
-    isSystem: doc.isSystem,
-    createdAt: doc.createdAt.getTime(),
-    updatedAt: doc.updatedAt.getTime(),
-    _deleted: deleted,
-  };
+  return toReplicationDoc(doc, ["createdAt", "updatedAt"], deleted) as TagReplicationDoc;
 }
