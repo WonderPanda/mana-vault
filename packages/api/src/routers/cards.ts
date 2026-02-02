@@ -38,6 +38,13 @@ export const cardsRouter = {
     /**
      * Pull endpoint for scryfall card replication.
      * Only returns cards that are referenced by the user's collection, decks, or lists.
+     *
+     * Uses an "effective_updated_at" computed as the MAX of:
+     * - The scryfall card's own updated_at
+     * - The most recent collection_card, deck_card, or virtual_list_card referencing it
+     *
+     * This ensures newly-linked cards (e.g. from a deck import) are picked up by
+     * incremental sync even though the scryfall card data itself hasn't changed.
      */
     pull: protectedProcedure
       .input(
@@ -77,81 +84,88 @@ export const cardsRouter = {
           )
         )`;
 
+        // Compute effective_updated_at: the most recent timestamp across the scryfall
+        // card itself and all referencing rows for this user. This ensures that when a
+        // user links an existing scryfall card to a deck/collection/list, the effective
+        // timestamp advances past the checkpoint so incremental sync picks it up.
+        // Uses raw integer milliseconds for D1 compatibility.
+        // Use fully-qualified table.column names in raw SQL to avoid ambiguity
+        // inside the subquery (Drizzle strips table prefixes from column refs)
+        const effectiveUpdatedAt = sql<number>`MAX(
+          "scryfall_card"."updated_at",
+          COALESCE((
+            SELECT MAX("collection_card"."updated_at")
+            FROM "collection_card"
+            WHERE "collection_card"."scryfall_card_id" = "scryfall_card"."id"
+              AND "collection_card"."user_id" = ${userId}
+          ), 0),
+          COALESCE((
+            SELECT MAX("deck_card"."updated_at")
+            FROM "deck_card"
+            INNER JOIN "deck" ON "deck_card"."deck_id" = "deck"."id"
+            WHERE "deck_card"."preferred_scryfall_id" = "scryfall_card"."id"
+              AND "deck"."user_id" = ${userId}
+          ), 0),
+          COALESCE((
+            SELECT MAX("virtual_list_card"."created_at")
+            FROM "virtual_list_card"
+            INNER JOIN "virtual_list" ON "virtual_list_card"."virtual_list_id" = "virtual_list"."id"
+            WHERE "virtual_list_card"."scryfall_card_id" = "scryfall_card"."id"
+              AND "virtual_list"."user_id" = ${userId}
+          ), 0)
+        )`.as("effective_updated_at");
+
+        const sq = db
+          .select({
+            id: scryfallCard.id,
+            oracleId: scryfallCard.oracleId,
+            name: scryfallCard.name,
+            setCode: scryfallCard.setCode,
+            setName: scryfallCard.setName,
+            collectorNumber: scryfallCard.collectorNumber,
+            rarity: scryfallCard.rarity,
+            manaCost: scryfallCard.manaCost,
+            cmc: scryfallCard.cmc,
+            typeLine: scryfallCard.typeLine,
+            oracleText: scryfallCard.oracleText,
+            colors: scryfallCard.colors,
+            colorIdentity: scryfallCard.colorIdentity,
+            imageUri: scryfallCard.imageUri,
+            scryfallUri: scryfallCard.scryfallUri,
+            priceUsd: scryfallCard.priceUsd,
+            priceUsdFoil: scryfallCard.priceUsdFoil,
+            priceUsdEtched: scryfallCard.priceUsdEtched,
+            dataJson: scryfallCard.dataJson,
+            createdAt: scryfallCard.createdAt,
+            updatedAt: scryfallCard.updatedAt,
+            effectiveUpdatedAt,
+          })
+          .from(scryfallCard)
+          .where(userReferencedCardCondition)
+          .as("sq");
+
         let documents;
         if (checkpoint) {
-          // Get documents after the checkpoint
           documents = await db
-            .select({
-              id: scryfallCard.id,
-              oracleId: scryfallCard.oracleId,
-              name: scryfallCard.name,
-              setCode: scryfallCard.setCode,
-              setName: scryfallCard.setName,
-              collectorNumber: scryfallCard.collectorNumber,
-              rarity: scryfallCard.rarity,
-              manaCost: scryfallCard.manaCost,
-              cmc: scryfallCard.cmc,
-              typeLine: scryfallCard.typeLine,
-              oracleText: scryfallCard.oracleText,
-              colors: scryfallCard.colors,
-              colorIdentity: scryfallCard.colorIdentity,
-              imageUri: scryfallCard.imageUri,
-              scryfallUri: scryfallCard.scryfallUri,
-              priceUsd: scryfallCard.priceUsd,
-              priceUsdFoil: scryfallCard.priceUsdFoil,
-              priceUsdEtched: scryfallCard.priceUsdEtched,
-              dataJson: scryfallCard.dataJson,
-              createdAt: scryfallCard.createdAt,
-              updatedAt: scryfallCard.updatedAt,
-            })
-            .from(scryfallCard)
+            .select()
+            .from(sq)
             .where(
-              and(
-                userReferencedCardCondition,
-                or(
-                  gt(scryfallCard.updatedAt, new Date(checkpoint.updatedAt)),
-                  and(
-                    eq(scryfallCard.updatedAt, new Date(checkpoint.updatedAt)),
-                    gt(scryfallCard.id, checkpoint.id),
-                  ),
-                ),
+              or(
+                gt(sq.effectiveUpdatedAt, checkpoint.updatedAt),
+                and(eq(sq.effectiveUpdatedAt, checkpoint.updatedAt), gt(sq.id, checkpoint.id)),
               ),
             )
-            .orderBy(asc(scryfallCard.updatedAt), asc(scryfallCard.id))
+            .orderBy(asc(sq.effectiveUpdatedAt), asc(sq.id))
             .limit(batchSize);
         } else {
-          // Initial sync - get all user's referenced cards
           documents = await db
-            .select({
-              id: scryfallCard.id,
-              oracleId: scryfallCard.oracleId,
-              name: scryfallCard.name,
-              setCode: scryfallCard.setCode,
-              setName: scryfallCard.setName,
-              collectorNumber: scryfallCard.collectorNumber,
-              rarity: scryfallCard.rarity,
-              manaCost: scryfallCard.manaCost,
-              cmc: scryfallCard.cmc,
-              typeLine: scryfallCard.typeLine,
-              oracleText: scryfallCard.oracleText,
-              colors: scryfallCard.colors,
-              colorIdentity: scryfallCard.colorIdentity,
-              imageUri: scryfallCard.imageUri,
-              scryfallUri: scryfallCard.scryfallUri,
-              priceUsd: scryfallCard.priceUsd,
-              priceUsdFoil: scryfallCard.priceUsdFoil,
-              priceUsdEtched: scryfallCard.priceUsdEtched,
-              dataJson: scryfallCard.dataJson,
-              createdAt: scryfallCard.createdAt,
-              updatedAt: scryfallCard.updatedAt,
-            })
-            .from(scryfallCard)
-            .where(userReferencedCardCondition)
-            .orderBy(asc(scryfallCard.updatedAt), asc(scryfallCard.id))
+            .select()
+            .from(sq)
+            .orderBy(asc(sq.effectiveUpdatedAt), asc(sq.id))
             .limit(batchSize);
         }
 
-        // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
+        // Transform documents for RxDB (ensure timestamps are ms integers, add _deleted flag)
         const rxdbDocuments = documents.map((doc) => ({
           id: doc.id,
           oracleId: doc.oracleId,
@@ -172,15 +186,16 @@ export const cardsRouter = {
           priceUsdFoil: doc.priceUsdFoil,
           priceUsdEtched: doc.priceUsdEtched,
           dataJson: doc.dataJson,
-          createdAt: doc.createdAt.getTime(),
-          updatedAt: doc.updatedAt.getTime(),
+          createdAt: toMs(doc.createdAt),
+          updatedAt: toMs(doc.updatedAt),
           _deleted: false,
         }));
 
-        // Calculate new checkpoint
-        const lastDoc = rxdbDocuments[rxdbDocuments.length - 1];
+        // Checkpoint uses effectiveUpdatedAt so it advances monotonically
+        // even when returning cards that were newly linked (not newly updated)
+        const lastDoc = documents[documents.length - 1];
         const newCheckpoint: ReplicationCheckpoint = lastDoc
-          ? { id: lastDoc.id, updatedAt: lastDoc.updatedAt }
+          ? { id: lastDoc.id, updatedAt: lastDoc.effectiveUpdatedAt }
           : checkpoint;
 
         return {
@@ -190,3 +205,8 @@ export const cardsRouter = {
       }),
   },
 };
+
+/** Safely convert a Date or raw integer (from D1 subquery) to milliseconds. */
+function toMs(value: Date | number): number {
+  return typeof value === "number" ? value : value.getTime();
+}

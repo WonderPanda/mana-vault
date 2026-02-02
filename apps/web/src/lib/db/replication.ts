@@ -135,10 +135,16 @@ export function setupReplicationsWithMultiplexedStream(
 
   const deckReplicationState = createReplication<DeckDoc>({
     collection: db.decks,
-    identifier: "deck-pull-replication",
+    identifier: "deck-replication",
+    deletedField: "_deleted",
     pullFn: (checkpoint, batchSize) => client.decks.sync.pull({ checkpoint, batchSize }),
     batchSize: 50,
     stream$: streams.deck$,
+    pushFn: async (rows) => {
+      const response = await client.decks.sync.push({ rows });
+      return response.conflicts;
+    },
+    pushBatchSize: 10,
   });
 
   const deckCardReplicationState = createReplication<DeckCardDoc>({
@@ -191,13 +197,21 @@ export function setupReplicationsWithMultiplexedStream(
     pushBatchSize: 10,
   });
 
-  // Scryfall cards: pull-only, no live stream (triggered by deck card / collection card changes)
+  // Scryfall cards: pull-only, no live stream.
+  // The server computes an effective_updated_at (MAX of the scryfall card's own timestamp
+  // and the referencing deck_card/collection_card/virtual_list_card timestamps), so newly
+  // linked cards appear past the checkpoint even though the card data itself is old.
+  // We just need to trigger reSync() when deck/collection cards change.
   const scryfallCardReplicationState = createReplication<ScryfallCardDoc>({
     collection: db.scryfall_cards,
     identifier: "scryfall-card-pull-replication",
     pullFn: (checkpoint, batchSize) => client.cards.sync.pull({ checkpoint, batchSize }),
     batchSize: 100,
   });
+
+  const triggerScryfallReSync = () => scryfallCardReplicationState.reSync();
+  streams.deckCard$.subscribe(triggerScryfallReSync);
+  streams.collectionCard$.subscribe(triggerScryfallReSync);
 
   return {
     deckReplicationState,

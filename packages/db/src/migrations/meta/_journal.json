@@ -57,6 +57,13 @@
       "when": 1769897555621,
       "tag": "0007_worthless_justin_hammer",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1769991082050,
+      "tag": "0008_redundant_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

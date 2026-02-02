@@ -1,4 +1,3 @@
-import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Swords } from "lucide-react";
 import { useState } from "react";
@@ -26,8 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { orpc, queryClient } from "@/utils/orpc";
-import { eq, sum, useLiveQuery, useLiveSuspenseQuery } from "@tanstack/react-db";
+import { eq, sum, useLiveSuspenseQuery } from "@tanstack/react-db";
 import { useDbCollections } from "@/lib/db/db-context";
 import type { ScryfallCardDoc } from "@/lib/db/db";
 
@@ -40,6 +38,7 @@ type DeckStatus = "active" | "retired" | "in_progress" | "theorycraft";
 type DeckArchetype = "aggro" | "control" | "combo" | "midrange" | "tempo" | "other";
 
 function DecksPage() {
+  const navigate = useNavigate();
   const { deckCardCollection, deckCollection, scryfallCardCollection } = useDbCollections();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -94,7 +93,12 @@ function DecksPage() {
               </Button>
             }
           />
-          <CreateDeckDialog onSuccess={() => setIsCreateOpen(false)} />
+          <CreateDeckDialog
+            onSuccess={(deckId) => {
+              setIsCreateOpen(false);
+              navigate({ to: "/decks/$deckId", params: { deckId } });
+            }}
+          />
         </Dialog>
       </PageHeader>
 
@@ -268,38 +272,42 @@ function EmptyDecksState({ onCreateClick }: { onCreateClick: () => void }) {
   );
 }
 
-function CreateDeckDialog({ onSuccess }: { onSuccess: () => void }) {
+function CreateDeckDialog({ onSuccess }: { onSuccess: (deckId: string) => void }) {
   const [name, setName] = useState("");
   const [format, setFormat] = useState<DeckFormat>("commander");
   const [status, setStatus] = useState<DeckStatus>("in_progress");
   const [archetype, setArchetype] = useState<DeckArchetype | "">("");
   const [description, setDescription] = useState("");
 
-  const createMutation = useMutation({
-    ...orpc.decks.create.mutationOptions(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: orpc.decks.list.queryOptions().queryKey,
-      });
-      setName("");
-      setFormat("commander");
-      setStatus("in_progress");
-      setArchetype("");
-      setDescription("");
-      onSuccess();
-    },
-  });
+  const { deckCollection } = useDbCollections();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    createMutation.mutate({
+
+    const deckId = crypto.randomUUID();
+    const now = Date.now();
+    deckCollection.insert({
+      id: deckId,
       name: name.trim(),
       format,
       status,
-      archetype: archetype || undefined,
-      description: description.trim() || undefined,
+      archetype: archetype || null,
+      colorIdentity: null,
+      description: description.trim() || null,
+      isPublic: false,
+      sortOrder: 0,
+      createdAt: now,
+      updatedAt: now,
+      _deleted: false,
     });
+
+    setName("");
+    setFormat("commander");
+    setStatus("in_progress");
+    setArchetype("");
+    setDescription("");
+    onSuccess(deckId);
   };
 
   return (
@@ -381,8 +389,8 @@ function CreateDeckDialog({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </div>
         <DialogFooter>
-          <Button type="submit" disabled={!name.trim() || createMutation.isPending}>
-            {createMutation.isPending ? "Creating..." : "Create"}
+          <Button type="submit" disabled={!name.trim()}>
+            Create
           </Button>
         </DialogFooter>
       </form>

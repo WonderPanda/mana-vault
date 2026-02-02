@@ -22,6 +22,7 @@ import {
   deckPublisher,
   deckCardPublisher,
   toDeckReplicationDoc,
+  type DeckReplicationDoc,
   type DeckStreamEvent,
   type DeckCardStreamEvent,
 } from "../publishers/deck-publisher";
@@ -576,7 +577,6 @@ export const decksRouter = {
         documents: [
           {
             id: input.id,
-            userId,
             name: existingDeck.name,
             format: "",
             status: "",
@@ -721,6 +721,141 @@ export const decksRouter = {
 
   sync: {
     /**
+     * Push endpoint for deck replication.
+     * Handles client→server writes with conflict resolution.
+     */
+    push: protectedProcedure
+      .input(
+        z.object({
+          rows: z.array(
+            z.object({
+              newDocumentState: z.object({
+                id: z.string(),
+                name: z.string(),
+                format: z.string(),
+                status: z.string(),
+                archetype: z.string().nullable(),
+                colorIdentity: z.string().nullable(),
+                description: z.string().nullable(),
+                isPublic: z.boolean(),
+                sortOrder: z.number(),
+                createdAt: z.number(),
+                updatedAt: z.number(),
+                _deleted: z.boolean(),
+              }),
+              assumedMasterState: z
+                .object({
+                  id: z.string(),
+                  name: z.string(),
+                  format: z.string(),
+                  status: z.string(),
+                  archetype: z.string().nullable(),
+                  colorIdentity: z.string().nullable(),
+                  description: z.string().nullable(),
+                  isPublic: z.boolean(),
+                  sortOrder: z.number(),
+                  createdAt: z.number(),
+                  updatedAt: z.number(),
+                  _deleted: z.boolean(),
+                })
+                .nullable(),
+            }),
+          ),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { rows } = input;
+        const conflicts: DeckReplicationDoc[] = [];
+        const changedDocs: DeckReplicationDoc[] = [];
+
+        for (const row of rows) {
+          const { newDocumentState, assumedMasterState } = row;
+
+          // Look up current master state
+          const [currentRow] = await db
+            .select()
+            .from(deck)
+            .where(and(eq(deck.id, newDocumentState.id), eq(deck.userId, userId)))
+            .limit(1);
+
+          if (!currentRow && !assumedMasterState) {
+            // New document — insert
+            const now = new Date();
+            const [inserted] = await db
+              .insert(deck)
+              .values({
+                id: newDocumentState.id,
+                userId,
+                name: newDocumentState.name,
+                format: newDocumentState.format,
+                status: newDocumentState.status,
+                archetype: newDocumentState.archetype,
+                colorIdentity: newDocumentState.colorIdentity,
+                description: newDocumentState.description,
+                isPublic: newDocumentState.isPublic,
+                sortOrder: newDocumentState.sortOrder,
+                createdAt: now,
+                updatedAt: now,
+                deletedAt: newDocumentState._deleted ? now : null,
+              })
+              .returning();
+
+            if (inserted) {
+              changedDocs.push(toDeckReplicationDoc(inserted, newDocumentState._deleted));
+            }
+          } else if (currentRow) {
+            // Check if assumed state matches current master (compare updatedAt)
+            const masterUpdatedAt = currentRow.updatedAt.getTime();
+            const assumedUpdatedAt = assumedMasterState?.updatedAt;
+
+            if (assumedUpdatedAt === masterUpdatedAt) {
+              // Match — apply the write
+              const [updated] = await db
+                .update(deck)
+                .set({
+                  name: newDocumentState.name,
+                  format: newDocumentState.format,
+                  status: newDocumentState.status,
+                  archetype: newDocumentState.archetype,
+                  colorIdentity: newDocumentState.colorIdentity,
+                  description: newDocumentState.description,
+                  isPublic: newDocumentState.isPublic,
+                  sortOrder: newDocumentState.sortOrder,
+                  deletedAt: newDocumentState._deleted ? new Date() : null,
+                })
+                .where(and(eq(deck.id, newDocumentState.id), eq(deck.userId, userId)))
+                .returning();
+
+              if (updated) {
+                changedDocs.push(toDeckReplicationDoc(updated, newDocumentState._deleted));
+              }
+            } else {
+              // Conflict — return current master state
+              conflicts.push(toDeckReplicationDoc(currentRow, currentRow.deletedAt !== null));
+            }
+          } else {
+            // Row doesn't exist but client assumed it did — conflict (row was deleted)
+            if (assumedMasterState) {
+              conflicts.push({ ...assumedMasterState, _deleted: true });
+            }
+          }
+        }
+
+        // Publish changed docs to SSE stream for other clients
+        if (changedDocs.length > 0) {
+          const lastDoc = changedDocs[changedDocs.length - 1]!;
+          const event: DeckStreamEvent = {
+            documents: changedDocs,
+            checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
+          };
+          await deckPublisher.publish(userId, event);
+        }
+
+        return { conflicts };
+      }),
+
+    /**
      * Pull endpoint for deck replication.
      * Returns documents modified after the given checkpoint.
      */
@@ -738,25 +873,27 @@ export const decksRouter = {
         // Build query conditions
         const userCondition = eq(deck.userId, userId);
 
+        const selectFields = {
+          id: deck.id,
+          name: deck.name,
+          format: deck.format,
+          status: deck.status,
+          archetype: deck.archetype,
+          colorIdentity: deck.colorIdentity,
+          description: deck.description,
+          isPublic: deck.isPublic,
+          sortOrder: deck.sortOrder,
+          createdAt: deck.createdAt,
+          updatedAt: deck.updatedAt,
+          deletedAt: deck.deletedAt,
+        };
+
         let documents;
         if (checkpoint) {
           // Get documents after the checkpoint
           // We compare updatedAt first, then id for stable ordering when timestamps match
           documents = await db
-            .select({
-              id: deck.id,
-              userId: deck.userId,
-              name: deck.name,
-              format: deck.format,
-              status: deck.status,
-              archetype: deck.archetype,
-              colorIdentity: deck.colorIdentity,
-              description: deck.description,
-              isPublic: deck.isPublic,
-              sortOrder: deck.sortOrder,
-              createdAt: deck.createdAt,
-              updatedAt: deck.updatedAt,
-            })
+            .select(selectFields)
             .from(deck)
             .where(
               and(
@@ -775,20 +912,7 @@ export const decksRouter = {
         } else {
           // Initial sync - get all documents
           documents = await db
-            .select({
-              id: deck.id,
-              userId: deck.userId,
-              name: deck.name,
-              format: deck.format,
-              status: deck.status,
-              archetype: deck.archetype,
-              colorIdentity: deck.colorIdentity,
-              description: deck.description,
-              isPublic: deck.isPublic,
-              sortOrder: deck.sortOrder,
-              createdAt: deck.createdAt,
-              updatedAt: deck.updatedAt,
-            })
+            .select(selectFields)
             .from(deck)
             .where(userCondition)
             .orderBy(asc(deck.updatedAt), asc(deck.id))
@@ -798,7 +922,6 @@ export const decksRouter = {
         // Transform documents for RxDB (convert dates to timestamps, add _deleted flag)
         const rxdbDocuments = documents.map((doc) => ({
           id: doc.id,
-          userId: doc.userId,
           name: doc.name,
           format: doc.format,
           status: doc.status,
@@ -809,7 +932,7 @@ export const decksRouter = {
           sortOrder: doc.sortOrder,
           createdAt: doc.createdAt.getTime(),
           updatedAt: doc.updatedAt.getTime(),
-          _deleted: false, // TODO: implement soft deletes on server to sync deletions
+          _deleted: doc.deletedAt !== null,
         }));
 
         // Calculate new checkpoint

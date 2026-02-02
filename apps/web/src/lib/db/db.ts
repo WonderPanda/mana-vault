@@ -67,12 +67,11 @@ const scryfallCardSchema: RxJsonSchema<ScryfallCardDoc> = {
 };
 
 const deckSchema: RxJsonSchema<DeckDoc> = {
-  version: 0,
+  version: 1, // Bumped: removed userId (local DB is user-scoped)
   primaryKey: "id",
   type: "object",
   properties: {
     id: { type: "string", maxLength: 36 },
-    userId: { type: "string" },
     name: { type: "string" },
     format: { type: "string" }, // commander, standard, modern, legacy, pioneer, pauper, other
     status: { type: "string" }, // active, retired, in_progress, theorycraft
@@ -87,7 +86,6 @@ const deckSchema: RxJsonSchema<DeckDoc> = {
   },
   required: [
     "id",
-    "userId",
     "name",
     "format",
     "status",
@@ -97,7 +95,6 @@ const deckSchema: RxJsonSchema<DeckDoc> = {
     "updatedAt",
     "_deleted",
   ],
-  indexes: ["userId", ["userId", "status"], ["userId", "format"]],
 };
 
 const deckCardSchema: RxJsonSchema<DeckCardDoc> = {
@@ -321,6 +318,13 @@ async function initializeDb() {
     },
     decks: {
       schema: deckSchema,
+      // Migration from version 0 to 1: remove userId (local DB is user-scoped)
+      migrationStrategies: {
+        1: (oldDoc) => {
+          const { userId: _userId, ...rest } = oldDoc;
+          return rest;
+        },
+      },
     },
     deck_cards: {
       schema: deckCardSchema,

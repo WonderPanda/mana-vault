@@ -24,7 +24,6 @@ export const deckPublisher = new EventPublisher<Record<string, DeckStreamEvent>>
 export function toDeckReplicationDoc(
   doc: {
     id: string;
-    userId: string;
     name: string;
     format: string;
     status: string;

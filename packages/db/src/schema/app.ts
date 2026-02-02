@@ -275,6 +275,8 @@ export const deck = sqliteTable(
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .$onUpdate(() => new Date())
       .notNull(),
+    /** Soft delete timestamp - when set, the deck is considered deleted */
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     index("deck_user_id_idx").on(table.userId),

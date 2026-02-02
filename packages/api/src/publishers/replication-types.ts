@@ -21,7 +21,6 @@ export interface ReplicationCheckpoint {
 
 export interface DeckReplicationDoc {
   id: string;
-  userId: string;
   name: string;
   format: string;
   status: string;
