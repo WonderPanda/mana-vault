@@ -19,7 +19,9 @@
       "Bash(ls:*)",
       "WebFetch(domain:rxdb.info)",
       "Bash(wc:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(zellij action:*)",
+      "Bash(wt config:*)"
     ]
   }
 }

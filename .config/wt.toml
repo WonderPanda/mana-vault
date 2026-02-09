@@ -1,0 +1,11 @@
+# Install dependencies when creating worktrees
+post-create = "bun install"
+
+# Copy gitignored files (node_modules, .env, .claude, etc.) in background
+[post-start]
+copy = "wt step copy-ignored"
+
+# Validate code quality before merging
+[pre-merge]
+lint = "bun run check"
+typecheck = "bun run check-types"
