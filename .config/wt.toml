@@ -1,5 +1,17 @@
 # Install dependencies when creating worktrees
-post-create = "bun install"
+[post-create]
+doppler = "doppler setup -p mana-vault -c dev --no-interactive"
+install = "bun install"
+env = """
+cat > .env.worktree << 'EOF'
+DEV_WEB_PORT={{ branch | hash_port }}
+DEV_SERVER_PORT={{ ('server-' ~ branch) | hash_port }}
+CORS_ORIGIN=http://localhost:{{ branch | hash_port }}
+VITE_SERVER_URL=http://localhost:{{ ('server-' ~ branch) | hash_port }}
+BETTER_AUTH_URL=http://localhost:{{ ('server-' ~ branch) | hash_port }}
+POLAR_SUCCESS_URL=http://localhost:{{ branch | hash_port }}/success?checkout_id={CHECKOUT_ID}
+EOF
+"""
 
 # Copy gitignored files (node_modules, .env, .claude, etc.) in background
 [post-start]
@@ -9,3 +21,7 @@ copy = "wt step copy-ignored"
 [pre-merge]
 lint = "bun run check"
 typecheck = "bun run check-types"
+
+# Show dev server URL in wt list
+[list]
+url = "http://localhost:{{ branch | hash_port }}"

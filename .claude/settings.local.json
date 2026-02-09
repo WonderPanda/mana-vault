@@ -21,7 +21,11 @@
       "Bash(wc:*)",
       "Bash(cat:*)",
       "Bash(zellij action:*)",
-      "Bash(wt config:*)"
+      "Bash(wt config:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(doppler configs:*)",
+      "Bash(doppler setup --help:*)"
     ]
   }
 }

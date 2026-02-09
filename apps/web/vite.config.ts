@@ -35,6 +35,6 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3002,
+    port: Number(process.env.DEV_WEB_PORT) || 3001,
   },
 });

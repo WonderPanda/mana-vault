@@ -33,7 +33,8 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
         },
         {
           onSuccess: async () => {
-            await queryClient.invalidateQueries({ queryKey: ["session"] });
+            await queryClient.removeQueries({ queryKey: ["session"] });
+
             navigate({
               to: "/cards",
             });

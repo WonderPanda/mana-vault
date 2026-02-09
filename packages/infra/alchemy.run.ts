@@ -103,7 +103,7 @@ export const server = await Worker("server", {
     },
   ],
   dev: {
-    port: 3007,
+    port: Number(process.env.DEV_SERVER_PORT) || 3007,
   },
 });
 

@@ -32,7 +32,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "doppler run -c dev -- turbo dev",
+    "dev": "doppler run -c dev -- sh -c '[ -f .env.worktree ] && set -a && . ./.env.worktree && set +a; exec turbo dev'",
     "build": "turbo build",
     "check-types": "TURBO_UI=0 turbo check-types",
     "dev:native": "turbo -F native dev",
