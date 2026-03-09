@@ -80,8 +80,12 @@ bun run destroy          # Destroy Cloudflare resources
 
 ### Testing
 
-- No test framework is currently configured in this project
-- If adding tests, use `bun:test` or Vitest (both compatible with Bun)
+- **E2E tests**: Playwright (`@playwright/test`) in `e2e/` directory
+- **Account seeding**: `bun run seed` creates the test account via Better-Auth's signup API
+- Run E2E tests: `bun run e2e`
+- Run E2E tests with UI: `bun run e2e:ui`
+- Seed accepts `--port <n>` to override server port, `--wait` to poll until server is ready
+- Unit tests: use `bun:test` or Vitest if needed
 
 ### Development Server
 

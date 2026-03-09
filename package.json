@@ -44,7 +44,10 @@
     "destroy": "doppler run -c dev -- turbo -F @mana-vault/infra destroy",
     "check": "oxlint && oxfmt --check .",
     "format": "oxfmt --write .",
-    "download:scryfall": "bun run scripts/download-scryfall-data.ts"
+    "download:scryfall": "bun run scripts/download-scryfall-data.ts",
+    "seed": "bun run scripts/seed-account.ts",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@mana-vault/env": "workspace:*",
@@ -54,6 +57,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@mana-vault/config": "workspace:*",
+    "@playwright/test": "^1.52.0",
     "@types/node": "^22.13.14",
     "lefthook": "^2.0.13",
     "oxfmt": "^0.19.0",
