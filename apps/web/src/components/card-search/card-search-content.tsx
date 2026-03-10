@@ -22,6 +22,8 @@ interface CardSearchContentProps {
   hideFooter?: boolean;
   /** For standalone/full-page mode - shows different footer */
   standalone?: boolean;
+  /** Increment to clear selection without resetting search */
+  clearSelectionKey?: number;
 }
 
 /**
@@ -41,11 +43,19 @@ export function CardSearchContent({
   className,
   hideFooter = false,
   standalone = false,
+  clearSelectionKey,
 }: CardSearchContentProps) {
   const [query, setQuery] = useState(initialQuery);
   const [selectedCards, setSelectedCards] = useState<Map<string, SelectedCard>>(new Map());
 
   const { data, isLoading, error, search, hasSearched, searchQuery } = useScryfallSearch();
+
+  // Clear selection when key changes (without resetting search)
+  useEffect(() => {
+    if (clearSelectionKey) {
+      setSelectedCards(new Map());
+    }
+  }, [clearSelectionKey]);
 
   const handleSearch = useCallback(() => {
     if (query.trim().length >= 2) {

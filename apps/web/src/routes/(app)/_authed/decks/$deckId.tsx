@@ -114,7 +114,6 @@ function DeckDetailPage() {
     ...orpc.decks.addCardsFromSearch.mutationOptions(),
     onSuccess: (data) => {
       toast.success(data.message);
-      setIsSearchOpen(false);
       // RxDB sync handles the UI update via deckCardPublisher RESYNC event
     },
     onError: (error) => {

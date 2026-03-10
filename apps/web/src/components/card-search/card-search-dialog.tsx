@@ -63,7 +63,9 @@ export function CardSearchDialog({
 }: CardSearchDialogProps) {
   const [selectedCards, setSelectedCards] = useState<SelectedCard[]>([]);
   const [addToCollection, setAddToCollection] = useState(false);
+  const [addMore, setAddMore] = useState(false);
   const contentKeyRef = useRef(0);
+  const clearSelectionKeyRef = useRef(0);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -71,6 +73,7 @@ export function CardSearchDialog({
     setTimeout(() => {
       setSelectedCards([]);
       setAddToCollection(false);
+      setAddMore(false);
       contentKeyRef.current += 1;
     }, 200);
   }, [onOpenChange]);
@@ -82,9 +85,14 @@ export function CardSearchDialog({
   const handleSubmit = useCallback(() => {
     if (selectedCards.length > 0) {
       onSelect(selectedCards, { addToCollection });
-      handleClose();
+      if (addMore) {
+        setSelectedCards([]);
+        clearSelectionKeyRef.current += 1;
+      } else {
+        handleClose();
+      }
     }
-  }, [selectedCards, onSelect, handleClose, addToCollection]);
+  }, [selectedCards, onSelect, handleClose, addToCollection, addMore]);
 
   const totalQuantity = selectedCards.reduce((sum, sc) => sum + sc.quantity, 0);
 
@@ -102,6 +110,7 @@ export function CardSearchDialog({
             onSelectionChange={handleSelectionChange}
             className="h-full"
             hideFooter
+            clearSelectionKey={clearSelectionKeyRef.current}
           />
         </div>
 
@@ -118,6 +127,13 @@ export function CardSearchDialog({
                   "No cards selected"
                 )}
               </span>
+              <label className="flex cursor-pointer items-center gap-2">
+                <Checkbox
+                  checked={addMore}
+                  onCheckedChange={(checked) => setAddMore(checked === true)}
+                />
+                <span className="text-sm">Add more</span>
+              </label>
               {showCollectionToggle && (
                 <label className="flex cursor-pointer items-center gap-2">
                   <Checkbox

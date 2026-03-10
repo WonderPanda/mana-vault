@@ -98,7 +98,6 @@ function CollectionDetailPage() {
     ...orpc.collections.addCardsFromSearch.mutationOptions(),
     onSuccess: (data) => {
       toast.success(data.message);
-      setIsSearchOpen(false);
     },
     onError: (error) => {
       toast.error(error.message || "Failed to add cards");

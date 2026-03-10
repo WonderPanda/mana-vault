@@ -137,7 +137,6 @@ function ListDetailPage() {
     ...orpc.lists.addCardsFromSearch.mutationOptions(),
     onSuccess: (data) => {
       toast.success(data.message);
-      setIsSearchOpen(false);
       queryClient.invalidateQueries({
         queryKey: orpc.lists.get.queryOptions({ input: { id: listId } }).queryKey,
       });
