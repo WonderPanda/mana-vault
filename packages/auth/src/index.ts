@@ -56,6 +56,9 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
   advanced: {
+    ...(new URL(env.BETTER_AUTH_URL).port && {
+      cookiePrefix: `better-auth-${new URL(env.BETTER_AUTH_URL).port}`,
+    }),
     defaultCookieAttributes: {
       sameSite: "none",
       secure: true,
