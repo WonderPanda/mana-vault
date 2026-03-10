@@ -45,6 +45,8 @@
     "check": "oxlint && oxfmt --check .",
     "format": "oxfmt --write .",
     "download:scryfall": "bun run scripts/download-scryfall-data.ts",
+    "db:export-scryfall": "bun run scripts/export-scryfall.ts",
+    "db:import-scryfall": "bun run scripts/import-scryfall.ts",
     "seed": "bun run scripts/seed-account.ts",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui"

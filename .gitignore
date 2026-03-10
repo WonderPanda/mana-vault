@@ -58,5 +58,6 @@ prd.env
 
 # Scryfall data
 scryfall-data
+.data/
 
 .env.worktree   

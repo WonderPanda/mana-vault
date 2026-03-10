@@ -18,6 +18,7 @@ EOF
 [post-start]
 copy = "wt step copy-ignored"
 seed = "bun run seed --wait &"
+scryfall = "bun run db:import-scryfall --wait &"
 
 # Validate code quality before merging
 [pre-merge]
