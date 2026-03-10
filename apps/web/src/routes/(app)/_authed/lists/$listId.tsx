@@ -133,6 +133,22 @@ function ListDetailPage() {
     },
   });
 
+  const removeCardMutation = useMutation({
+    ...orpc.lists.removeCard.mutationOptions(),
+    onSuccess: () => {
+      toast.success("Card removed from list");
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.get.queryOptions({ input: { id: listId } }).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.getCards.queryOptions({ input: { listId } }).queryKey,
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to remove card");
+    },
+  });
+
   const addCardsMutation = useMutation({
     ...orpc.lists.addCardsFromSearch.mutationOptions(),
     onSuccess: (data) => {
@@ -423,6 +439,12 @@ function ListDetailPage() {
             <VirtualizedMtgCardGrid
               view={viewMode}
               scrollElementRef={scrollContainerRef}
+              onRemoveCard={(card) => {
+                removeCardMutation.mutate({
+                  listId,
+                  virtualListCardId: card.id,
+                });
+              }}
               cards={cards
                 .map((card) => ({
                   id: card.id,

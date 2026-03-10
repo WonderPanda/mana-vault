@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Grid2X2, List, Package, PackageCheck } from "lucide-react";
+import { Grid2X2, List, Package, PackageCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { OwnershipStatus } from "@/hooks/use-deck-cards";
@@ -81,6 +81,8 @@ interface VirtualizedMtgCardGridProps {
   scrollElementRef?: React.RefObject<HTMLElement | null>;
   /** Callback when a card is clicked */
   onCardClick?: (card: MtgCardData) => void;
+  /** Callback when a card's remove button is clicked. Shows remove button when provided. */
+  onRemoveCard?: (card: MtgCardData) => void;
 }
 
 /**
@@ -93,6 +95,7 @@ export function VirtualizedMtgCardGrid({
   className,
   scrollElementRef,
   onCardClick,
+  onRemoveCard,
 }: VirtualizedMtgCardGridProps) {
   const columns = useGridColumns();
 
@@ -145,6 +148,7 @@ export function VirtualizedMtgCardGrid({
                   card={card}
                   view="list"
                   onClick={onCardClick ? () => onCardClick(card) : undefined}
+                  onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
                 />
               </div>
             );
@@ -174,6 +178,7 @@ export function VirtualizedMtgCardGrid({
                     card={card}
                     view="grid"
                     onClick={onCardClick ? () => onCardClick(card) : undefined}
+                    onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
                   />
                 ))}
               </div>
@@ -210,10 +215,11 @@ export function MtgCardGrid({ children, className, view = "grid" }: MtgCardGridP
 interface MtgCardItemProps {
   card: MtgCardData;
   onClick?: () => void;
+  onRemove?: () => void;
   view?: MtgCardViewMode;
 }
 
-export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) {
+export function MtgCardItem({ card, onClick, onRemove, view = "grid" }: MtgCardItemProps) {
   const { scryfallCard, condition, isFoil, language, quantity, ownershipStatus } = card;
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
 
@@ -279,7 +285,7 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
       <>
         <div
           className={cn(
-            "flex cursor-pointer items-center justify-between gap-2 border-b border-border/50 px-2 py-1.5 hover:bg-muted/50",
+            "group/listitem flex cursor-pointer items-center justify-between gap-2 border-b border-border/50 px-2 py-1.5 hover:bg-muted/50",
           )}
           onClick={() => {
             if (onClick) {
@@ -309,6 +315,19 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
               <span className="text-xs text-muted-foreground font-bold">${price.toFixed(2)}</span>
             )}
             <ManaCost cost={scryfallCard.manaCost} className="shrink-0" />
+            {onRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/listitem:opacity-100"
+                aria-label={`Remove ${scryfallCard.name}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -327,7 +346,7 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
   return (
     <>
       <Card
-        className={cn("gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", "cursor-pointer")}
+        className={cn("group/card gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", "cursor-pointer")}
         onClick={() => {
           if (onClick) {
             onClick();
@@ -337,6 +356,19 @@ export function MtgCardItem({ card, onClick, view = "grid" }: MtgCardItemProps) 
         }}
       >
         <div className="relative overflow-hidden rounded-lg">
+          {onRemove && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="absolute top-1 right-1 z-10 rounded-full bg-background/80 p-1 text-muted-foreground opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:bg-destructive/20 hover:text-destructive group-hover/card:opacity-100"
+              aria-label={`Remove ${scryfallCard.name}`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
           {scryfallCard.imageUri ? (
             <img
               src={scryfallCard.imageUri}

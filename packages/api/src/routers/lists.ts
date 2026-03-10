@@ -471,6 +471,48 @@ export const listsRouter = {
     }),
 
   /**
+   * Remove a card from a list.
+   * This only removes the virtualListCard entry - collection cards are never affected.
+   */
+  removeCard: protectedProcedure
+    .input(
+      z.object({
+        listId: z.string(),
+        virtualListCardId: z.string(),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      // Verify the list exists and belongs to the user
+      const [list] = await db
+        .select({ id: virtualList.id })
+        .from(virtualList)
+        .where(and(eq(virtualList.id, input.listId), eq(virtualList.userId, userId)));
+
+      if (!list) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found" });
+      }
+
+      // Delete the virtual list card entry
+      const [deleted] = await db
+        .delete(virtualListCard)
+        .where(
+          and(
+            eq(virtualListCard.id, input.virtualListCardId),
+            eq(virtualListCard.virtualListId, input.listId),
+          ),
+        )
+        .returning({ id: virtualListCard.id });
+
+      if (!deleted) {
+        throw new ORPCError("NOT_FOUND", { message: "Card not found in list" });
+      }
+
+      return { success: true };
+    }),
+
+  /**
    * Add cards from Scryfall search to a list.
    * This creates virtual_list_card entries with scryfall references.
    *
