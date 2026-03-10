@@ -17,8 +17,6 @@ EOF
 # Copy gitignored files (node_modules, .env, .claude, etc.) in background
 [post-start]
 copy = "wt step copy-ignored"
-seed = "bun run seed --wait &"
-scryfall = "bun run db:import-scryfall --wait &"
 
 # Validate code quality before merging
 [pre-merge]

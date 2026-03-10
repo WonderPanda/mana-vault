@@ -48,6 +48,7 @@
     "db:export-scryfall": "bun run scripts/export-scryfall.ts",
     "db:import-scryfall": "bun run scripts/import-scryfall.ts",
     "seed": "bun run scripts/seed-account.ts",
+    "wt:prep": "bun run seed && bun run db:import-scryfall",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui"
   },
