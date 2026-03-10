@@ -25,7 +25,10 @@
       "Bash(echo:*)",
       "Bash(cat:*)",
       "Bash(doppler configs:*)",
-      "Bash(doppler setup --help:*)"
+      "Bash(doppler setup --help:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

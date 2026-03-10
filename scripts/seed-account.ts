@@ -8,6 +8,16 @@
  *   --wait      Poll until the server is ready before seeding (30s timeout)
  */
 
+import { config } from "dotenv";
+import { existsSync } from "fs";
+import { resolve } from "path";
+
+// Load .env.worktree if present (for dynamic worktree ports)
+const worktreeEnv = resolve(import.meta.dirname, "..", ".env.worktree");
+if (existsSync(worktreeEnv)) {
+  config({ path: worktreeEnv });
+}
+
 const TEST_ACCOUNT = {
   name: "Jesse",
   email: "jesse@thecarters.cloud",
@@ -24,6 +34,8 @@ function getArg(flag: string): string | undefined {
 const port = getArg("--port") ?? process.env.DEV_SERVER_PORT ?? "3002";
 const shouldWait = args.includes("--wait");
 const baseUrl = `http://localhost:${port}`;
+
+console.log(`Using server URL: ${baseUrl}`);
 
 async function waitForServer(url: string, timeoutMs = 30_000) {
   const start = Date.now();

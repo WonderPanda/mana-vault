@@ -76,6 +76,7 @@ export const server = await Worker("server", {
     BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,
     POLAR_ACCESS_TOKEN: alchemy.secret.env.POLAR_ACCESS_TOKEN!,
     POLAR_SUCCESS_URL: alchemy.env.POLAR_SUCCESS_URL!,
+    DISABLE_POLAR: process.env.DISABLE_POLAR ?? "",
     SCRYFALL_DATA: scryfallDataBucket,
     SCRYFALL_IMPORT_QUEUE: scryfallImportQueue,
     SCRYFALL_INSERT_QUEUE: scryfallInsertQueue,

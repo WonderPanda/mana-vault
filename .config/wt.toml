@@ -10,6 +10,7 @@ CORS_ORIGIN=http://localhost:{{ branch | hash_port }}
 VITE_SERVER_URL=http://localhost:{{ ('server-' ~ branch) | hash_port }}
 BETTER_AUTH_URL=http://localhost:{{ ('server-' ~ branch) | hash_port }}
 POLAR_SUCCESS_URL=http://localhost:{{ branch | hash_port }}/success?checkout_id={CHECKOUT_ID}
+DISABLE_POLAR=true
 EOF
 """
 

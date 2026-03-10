@@ -1,0 +1,8 @@
+# Generated files
+apps/web/src/routeTree.gen.ts
+apps/web/dev-dist/
+apps/native/.expo/
+apps/native/expo-env.d.ts
+
+# Migration snapshots
+packages/db/src/migrations/meta/

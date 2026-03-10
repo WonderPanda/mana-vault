@@ -32,11 +32,17 @@ export function PageHeader({ children, className }: PageHeaderProps) {
 export function PageTitle({
   children,
   className,
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }) {
-  return <h1 className={cn("text-2xl font-bold text-primary", className)}>{children}</h1>;
+  return (
+    <h1 className={cn("text-2xl font-bold text-primary", className)} onClick={onClick}>
+      {children}
+    </h1>
+  );
 }
 
 export const PageContent = forwardRef<HTMLDivElement, PageContentProps>(

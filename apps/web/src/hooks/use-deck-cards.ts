@@ -2,7 +2,7 @@ import { and, eq, sum, useLiveQuery } from "@tanstack/react-db";
 import { useMemo } from "react";
 
 import { useDbCollections } from "@/lib/db/db-context";
-import type { CollectionCardDoc, DeckCardDoc, ScryfallCardDoc } from "@/lib/db/db";
+import type { DeckCardDoc, ScryfallCardDoc } from "@/lib/db/db";
 
 export const BOARD_TYPES = {
   MAIN: "main",

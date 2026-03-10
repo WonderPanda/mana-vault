@@ -3,12 +3,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
-  Copy,
   Gift,
   Globe,
   Heart,
   ListChecks,
   MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   Share2,
@@ -17,7 +17,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
@@ -40,6 +40,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -68,7 +69,38 @@ function ListDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
   const [copySuccess, setCopySuccess] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [editName, setEditName] = useState(list.name);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isRenaming) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [isRenaming]);
+
+  const handleRename = () => {
+    const trimmed = editName.trim();
+    if (!trimmed || trimmed === list.name) {
+      setEditName(list.name);
+      setIsRenaming(false);
+      return;
+    }
+    updateMutation.mutate(
+      { id: listId, name: trimmed },
+      {
+        onSuccess: () => {
+          setIsRenaming(false);
+        },
+        onError: () => {
+          setEditName(list.name);
+          setIsRenaming(false);
+        },
+      },
+    );
+  };
 
   const importMutation = useMutation({
     ...orpc.lists.importCards.mutationOptions(),
@@ -192,7 +224,35 @@ function ListDetailPage() {
               <TypeIcon className={`h-5 w-5 ${isWishlist ? "text-pink-500" : "text-primary"}`} />
             </div>
             <div>
-              <PageTitle>{list.name}</PageTitle>
+              {isRenaming ? (
+                <Input
+                  ref={renameInputRef}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={handleRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                    }
+                    if (e.key === "Escape") {
+                      setEditName(list.name);
+                      setIsRenaming(false);
+                    }
+                  }}
+                  className="h-9 text-2xl font-bold text-primary"
+                  maxLength={100}
+                />
+              ) : (
+                <PageTitle
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setEditName(list.name);
+                    setIsRenaming(true);
+                  }}
+                >
+                  {list.name}
+                </PageTitle>
+              )}
               {list.description && (
                 <p className="text-sm text-muted-foreground">{list.description}</p>
               )}
@@ -257,6 +317,15 @@ function ListDetailPage() {
               }
             />
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditName(list.name);
+                  setIsRenaming(true);
+                }}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Rename
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setIsDeleteOpen(true)}

@@ -6,7 +6,35 @@ import { polar, checkout, portal } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
+import type { BetterAuthPlugin } from "better-auth";
+
 import { polarClient } from "./lib/payments";
+
+const polarEnabled = !env.DISABLE_POLAR;
+
+const polarPlugins: BetterAuthPlugin[] = polarEnabled
+  ? [
+      polar({
+        client: polarClient,
+        createCustomerOnSignUp: true,
+        enableCustomerPortal: true,
+        use: [
+          checkout({
+            products: [
+              {
+                // TODO: Pull from ENV
+                productId: "d93f7add-b153-4e71-a161-55bd9b5c4149",
+                slug: "pro",
+              },
+            ],
+            successUrl: env.POLAR_SUCCESS_URL,
+            authenticatedUsersOnly: true,
+          }),
+          portal(),
+        ],
+      }),
+    ]
+  : [];
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -40,26 +68,5 @@ export const auth = betterAuth({
     //   domain: "<your-workers-subdomain>",
     // },
   },
-  plugins: [
-    polar({
-      client: polarClient,
-      createCustomerOnSignUp: true,
-      enableCustomerPortal: true,
-      use: [
-        checkout({
-          products: [
-            {
-              // TODO: Pull from ENV
-              productId: "d93f7add-b153-4e71-a161-55bd9b5c4149",
-              slug: "pro",
-            },
-          ],
-          successUrl: env.POLAR_SUCCESS_URL,
-          authenticatedUsersOnly: true,
-        }),
-        portal(),
-      ],
-    }),
-    expo(),
-  ],
+  plugins: [...polarPlugins, expo()],
 });

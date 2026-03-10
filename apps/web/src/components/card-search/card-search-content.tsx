@@ -36,7 +36,7 @@ interface CardSearchContentProps {
  */
 export function CardSearchContent({
   onSelectionChange,
-  onConfirm,
+  onConfirm: _onConfirm,
   initialQuery = "",
   className,
   hideFooter = false,
@@ -105,11 +105,6 @@ export function CardSearchContent({
       return next;
     });
   }, []);
-
-  const handleConfirm = useCallback(() => {
-    const cards = Array.from(selectedCards.values());
-    onConfirm?.(cards);
-  }, [selectedCards, onConfirm]);
 
   const selectedCardsList = Array.from(selectedCards.values());
   const totalQuantity = selectedCardsList.reduce((sum, sc) => sum + sc.quantity, 0);
