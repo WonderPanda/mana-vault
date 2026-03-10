@@ -83,6 +83,8 @@ interface VirtualizedMtgCardGridProps {
   onCardClick?: (card: MtgCardData) => void;
   /** Callback when a card's remove button is clicked. Shows remove button when provided. */
   onRemoveCard?: (card: MtgCardData) => void;
+  /** When true, cards show prominent always-visible remove buttons */
+  removeMode?: boolean;
 }
 
 /**
@@ -96,6 +98,7 @@ export function VirtualizedMtgCardGrid({
   scrollElementRef,
   onCardClick,
   onRemoveCard,
+  removeMode,
 }: VirtualizedMtgCardGridProps) {
   const columns = useGridColumns();
 
@@ -149,6 +152,7 @@ export function VirtualizedMtgCardGrid({
                   view="list"
                   onClick={onCardClick ? () => onCardClick(card) : undefined}
                   onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
+                  removeMode={removeMode}
                 />
               </div>
             );
@@ -179,6 +183,7 @@ export function VirtualizedMtgCardGrid({
                     view="grid"
                     onClick={onCardClick ? () => onCardClick(card) : undefined}
                     onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
+                    removeMode={removeMode}
                   />
                 ))}
               </div>
@@ -217,9 +222,16 @@ interface MtgCardItemProps {
   onClick?: () => void;
   onRemove?: () => void;
   view?: MtgCardViewMode;
+  removeMode?: boolean;
 }
 
-export function MtgCardItem({ card, onClick, onRemove, view = "grid" }: MtgCardItemProps) {
+export function MtgCardItem({
+  card,
+  onClick,
+  onRemove,
+  view = "grid",
+  removeMode,
+}: MtgCardItemProps) {
   const { scryfallCard, condition, isFoil, language, quantity, ownershipStatus } = card;
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
 
@@ -286,6 +298,7 @@ export function MtgCardItem({ card, onClick, onRemove, view = "grid" }: MtgCardI
         <div
           className={cn(
             "group/listitem flex cursor-pointer items-center justify-between gap-2 border-b border-border/50 px-2 py-1.5 hover:bg-muted/50",
+            removeMode && "bg-destructive/5",
           )}
           onClick={() => {
             if (onClick) {
@@ -322,7 +335,12 @@ export function MtgCardItem({ card, onClick, onRemove, view = "grid" }: MtgCardI
                   e.stopPropagation();
                   onRemove();
                 }}
-                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/listitem:opacity-100"
+                className={cn(
+                  "rounded p-0.5 transition-opacity",
+                  removeMode
+                    ? "text-destructive opacity-100"
+                    : "text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover/listitem:opacity-100",
+                )}
                 aria-label={`Remove ${scryfallCard.name}`}
               >
                 <X className="h-3.5 w-3.5" />
@@ -346,7 +364,11 @@ export function MtgCardItem({ card, onClick, onRemove, view = "grid" }: MtgCardI
   return (
     <>
       <Card
-        className={cn("group/card gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5", "cursor-pointer")}
+        className={cn(
+          "group/card gap-0 overflow-hidden pt-0 pb-1 sm:pb-1.5",
+          "cursor-pointer",
+          removeMode && "ring-2 ring-destructive/30",
+        )}
         onClick={() => {
           if (onClick) {
             onClick();
@@ -363,7 +385,12 @@ export function MtgCardItem({ card, onClick, onRemove, view = "grid" }: MtgCardI
                 e.stopPropagation();
                 onRemove();
               }}
-              className="absolute top-1 right-1 z-10 rounded-full bg-background/80 p-1 text-muted-foreground opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:bg-destructive/20 hover:text-destructive group-hover/card:opacity-100"
+              className={cn(
+                "absolute top-1 right-1 z-10 rounded-full shadow-sm transition-opacity",
+                removeMode
+                  ? "bg-destructive p-1.5 text-destructive-foreground opacity-100"
+                  : "bg-background/80 p-1 text-muted-foreground opacity-0 backdrop-blur-sm hover:bg-destructive/20 hover:text-destructive group-hover/card:opacity-100",
+              )}
               aria-label={`Remove ${scryfallCard.name}`}
             >
               <X className="h-3.5 w-3.5" />
