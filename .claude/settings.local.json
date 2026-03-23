@@ -29,7 +29,9 @@
       "Bash(git status:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(agent-browser get:*)",
+      "Bash(agent-browser press:*)"
     ]
   }
 }

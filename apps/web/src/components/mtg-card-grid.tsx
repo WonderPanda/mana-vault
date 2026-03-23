@@ -6,6 +6,7 @@ import type { OwnershipStatus } from "@/hooks/use-deck-cards";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 
+import { CardDetailDialog } from "./card-detail-dialog";
 import { ManaCost } from "./mana-cost";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -101,6 +102,7 @@ export function VirtualizedMtgCardGrid({
   removeMode,
 }: VirtualizedMtgCardGridProps) {
   const columns = useGridColumns();
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
 
   // For grid view, we virtualize rows (each containing multiple cards)
   // For list view, we virtualize individual items
@@ -119,6 +121,9 @@ export function VirtualizedMtgCardGrid({
     virtualizer.measure();
   }, [view, columns, virtualizer]);
 
+  // When no onCardClick is provided, clicking a card opens the navigation dialog
+  const handleCardClick = onCardClick ? undefined : (index: number) => setSelectedCardIndex(index);
+
   return (
     // Key on view mode forces complete remount when switching views,
     // ensuring measurements are reset properly
@@ -134,6 +139,7 @@ export function VirtualizedMtgCardGrid({
           if (view === "list") {
             const card = cards[virtualItem.index];
             if (!card) return null;
+            const cardIndex = virtualItem.index;
 
             return (
               <div
@@ -150,7 +156,13 @@ export function VirtualizedMtgCardGrid({
                 <MtgCardItem
                   card={card}
                   view="list"
-                  onClick={onCardClick ? () => onCardClick(card) : undefined}
+                  onClick={
+                    onCardClick
+                      ? () => onCardClick(card)
+                      : handleCardClick
+                        ? () => handleCardClick(cardIndex)
+                        : undefined
+                  }
                   onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
                   removeMode={removeMode}
                 />
@@ -176,21 +188,38 @@ export function VirtualizedMtgCardGrid({
               }}
             >
               <div className="grid grid-cols-3 gap-2 pb-2 sm:gap-4 sm:pb-4 lg:grid-cols-4 xl:grid-cols-5">
-                {rowCards.map((card) => (
-                  <MtgCardItem
-                    key={card.id}
-                    card={card}
-                    view="grid"
-                    onClick={onCardClick ? () => onCardClick(card) : undefined}
-                    onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
-                    removeMode={removeMode}
-                  />
-                ))}
+                {rowCards.map((card, i) => {
+                  const cardIndex = startIndex + i;
+                  return (
+                    <MtgCardItem
+                      key={card.id}
+                      card={card}
+                      view="grid"
+                      onClick={
+                        onCardClick
+                          ? () => onCardClick(card)
+                          : handleCardClick
+                            ? () => handleCardClick(cardIndex)
+                            : undefined
+                      }
+                      onRemove={onRemoveCard ? () => onRemoveCard(card) : undefined}
+                      removeMode={removeMode}
+                    />
+                  );
+                })}
               </div>
             </div>
           );
         })}
       </div>
+
+      {!onCardClick && (
+        <CardDetailDialog
+          cards={cards}
+          selectedIndex={selectedCardIndex}
+          onClose={() => setSelectedCardIndex(null)}
+        />
+      )}
     </div>
   );
 }

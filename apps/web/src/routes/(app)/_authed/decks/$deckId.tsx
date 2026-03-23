@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { CardDetailDialog } from "@/components/card-detail-dialog";
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { CardSearchDialog } from "@/components/card-search";
@@ -63,6 +64,7 @@ function DeckDetailPage() {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
 
   const { data: deck } = useDeck(deckId);
   const { data: cardCount } = useDeckCardCount(deckId);
@@ -145,6 +147,12 @@ function DeckDetailPage() {
       board: activeBoard,
       addToCollection: options?.addToCollection ?? false,
     });
+  };
+
+  const handleCardClick = (card: { id: string }) => {
+    if (!allCards) return;
+    const index = allCards.findIndex((c) => c.id === card.id);
+    if (index !== -1) setSelectedCardIndex(index);
   };
 
   if (!deck) {
@@ -337,7 +345,12 @@ function DeckDetailPage() {
                     </h3>
                     <MtgCardGrid view={viewMode}>
                       {commanders.map((card) => (
-                        <MtgCardItem key={card.id} card={card} view={viewMode} />
+                        <MtgCardItem
+                          key={card.id}
+                          card={card}
+                          view={viewMode}
+                          onClick={() => handleCardClick(card)}
+                        />
                       ))}
                     </MtgCardGrid>
                   </div>
@@ -350,10 +363,19 @@ function DeckDetailPage() {
                   view={viewMode}
                   excludeCommanders={isCommanderDeck && activeBoard === BOARD_TYPES.MAIN}
                   activeBoard={activeBoard}
+                  onCardClick={handleCardClick}
                 />
               ))}
             </div>
           </>
+        )}
+
+        {allCards && allCards.length > 0 && (
+          <CardDetailDialog
+            cards={allCards}
+            selectedIndex={selectedCardIndex}
+            onClose={() => setSelectedCardIndex(null)}
+          />
         )}
       </PageContent>
     </PageLayout>
@@ -366,6 +388,7 @@ interface DeckCardCategoryProps {
   view: MtgCardViewMode;
   excludeCommanders?: boolean;
   activeBoard: BoardType;
+  onCardClick?: (card: { id: string }) => void;
 }
 
 function DeckCardCategory({
@@ -374,6 +397,7 @@ function DeckCardCategory({
   view,
   excludeCommanders,
   activeBoard,
+  onCardClick,
 }: DeckCardCategoryProps) {
   const { data: cards } = useDeckCardsByCategory(deckId, category, activeBoard);
 
@@ -391,7 +415,12 @@ function DeckCardCategory({
       </h3>
       <MtgCardGrid view={view}>
         {filteredCards.map((card) => (
-          <MtgCardItem key={card.id} card={card} view={view} />
+          <MtgCardItem
+            key={card.id}
+            card={card}
+            view={view}
+            onClick={onCardClick ? () => onCardClick(card) : undefined}
+          />
         ))}
       </MtgCardGrid>
     </div>
