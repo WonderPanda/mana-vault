@@ -27,6 +27,8 @@ interface CardSearchDialogProps {
   description?: string;
   /** Show the "I own these cards" toggle */
   showCollectionToggle?: boolean;
+  /** Optional Scryfall query prefix prepended to every search (e.g. "legal:commander id:rgu") */
+  searchPrefix?: string;
 }
 
 /**
@@ -60,6 +62,7 @@ export function CardSearchDialog({
   title = "Search Cards",
   description = "Search for Magic cards to add. You can select multiple cards and specify quantities.",
   showCollectionToggle = false,
+  searchPrefix,
 }: CardSearchDialogProps) {
   const [selectedCards, setSelectedCards] = useState<SelectedCard[]>([]);
   const [addToCollection, setAddToCollection] = useState(false);
@@ -111,6 +114,7 @@ export function CardSearchDialog({
             className="h-full"
             hideFooter
             clearSelectionKey={clearSelectionKeyRef.current}
+            searchPrefix={searchPrefix}
           />
         </div>
 

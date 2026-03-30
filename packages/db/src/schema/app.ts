@@ -419,6 +419,10 @@ export const virtualList = sqliteTable(
     snapshotDate: integer("snapshot_date", { mode: "timestamp_ms" }),
     isPublic: integer("is_public", { mode: "boolean" }).default(false).notNull(),
     slug: text("slug"), // URL-friendly slug for public lists (e.g., "my-awesome-deck"), unique per user
+    /** Optional commander card associated with this list (e.g., for Commander deck building) */
+    commanderScryfallCardId: text("commander_scryfall_card_id").references(() => scryfallCard.id, {
+      onDelete: "set null",
+    }),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
       .notNull(),
@@ -760,6 +764,10 @@ export const virtualListRelations = relations(virtualList, ({ one, many }) => ({
   user: one(user, {
     fields: [virtualList.userId],
     references: [user.id],
+  }),
+  commanderCard: one(scryfallCard, {
+    fields: [virtualList.commanderScryfallCardId],
+    references: [scryfallCard.id],
   }),
   cards: many(virtualListCard),
 }));

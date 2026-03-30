@@ -43,6 +43,7 @@ import {
   type BoardType,
   type CardCategory,
 } from "@/hooks/use-deck-cards";
+import { buildCommanderSearchPrefix } from "@/lib/commander-utils";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const deckDetailSearchSchema = z.object({
@@ -71,6 +72,11 @@ function DeckDetailPage() {
   const { data: allCards } = useDeckCards(deckId, activeBoard);
   const { data: commanders } = useDeckCommanders(deckId);
   const isCommanderDeck = deck?.format === "commander";
+
+  const commanderSearchPrefix =
+    isCommanderDeck && commanders && commanders.length > 0
+      ? buildCommanderSearchPrefix(commanders.map((c) => c.scryfallCard?.colorIdentity))
+      : undefined;
 
   const { data: mainCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.MAIN);
   const { data: sideboardCount } = useDeckCardCountByBoard(deckId, BOARD_TYPES.SIDEBOARD);
@@ -262,8 +268,13 @@ function DeckDetailPage() {
         onOpenChange={setIsSearchOpen}
         onSelect={handleAddFromSearch}
         title={`Add Cards to "${deck.name}"`}
-        description="Search for Magic cards to add to this deck. You can select multiple cards and specify quantities."
+        description={
+          commanderSearchPrefix
+            ? "Search results are filtered to cards legal in Commander within your commander's color identity."
+            : "Search for Magic cards to add to this deck. You can select multiple cards and specify quantities."
+        }
         showCollectionToggle
+        searchPrefix={commanderSearchPrefix}
       />
 
       <PageContent>

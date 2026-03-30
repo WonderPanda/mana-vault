@@ -10,6 +10,7 @@ import {
   type MtgCardViewMode,
 } from "@/components/mtg-card-grid";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
+import { CommanderDisplay } from "@/components/commander-display";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
@@ -79,6 +80,8 @@ function PublicListPage() {
       </PageHeader>
 
       <PageContent ref={scrollContainerRef}>
+        <CommanderDisplay commander={list.commander} />
+
         {/* List metadata */}
         <div className="mb-6 flex flex-wrap gap-4 text-sm text-muted-foreground">
           <div>

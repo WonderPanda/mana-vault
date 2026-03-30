@@ -24,6 +24,8 @@ interface CardSearchContentProps {
   standalone?: boolean;
   /** Increment to clear selection without resetting search */
   clearSelectionKey?: number;
+  /** Optional Scryfall query prefix prepended to every search (e.g. "legal:commander id:rgu") */
+  searchPrefix?: string;
 }
 
 /**
@@ -44,6 +46,7 @@ export function CardSearchContent({
   hideFooter = false,
   standalone = false,
   clearSelectionKey,
+  searchPrefix,
 }: CardSearchContentProps) {
   const [query, setQuery] = useState(initialQuery);
   const [selectedCards, setSelectedCards] = useState<Map<string, SelectedCard>>(new Map());
@@ -59,9 +62,9 @@ export function CardSearchContent({
 
   const handleSearch = useCallback(() => {
     if (query.trim().length >= 2) {
-      search(query);
+      search(searchPrefix ? `${searchPrefix} ${query}` : query);
     }
-  }, [query, search]);
+  }, [query, search, searchPrefix]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

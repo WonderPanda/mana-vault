@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { db } from "@mana-vault/db";
 import { scryfallCard, virtualList, virtualListCard } from "@mana-vault/db/schema/app";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import z from "zod";
 
 import { protectedProcedure, publicProcedure } from "../index";
@@ -9,6 +10,26 @@ import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
 import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
+
+/** Alias for the commander card join (avoids collision with other scryfallCard joins) */
+const commanderCard = alias(scryfallCard, "commander_card");
+
+/** Reusable select fields for commander card data in list queries */
+const commanderSelectFields = {
+  id: commanderCard.id,
+  name: commanderCard.name,
+  imageUri: commanderCard.imageUri,
+  colorIdentity: commanderCard.colorIdentity,
+};
+
+/** Normalizes commander from left join (all-null fields) to null when no commander is set */
+function normalizeCommander<T extends { commander: { id: string | null } | null }>(
+  row: T,
+): T & { commander: NonNullable<T["commander"]> | null } {
+  return { ...row, commander: row.commander?.id ? row.commander : null } as T & {
+    commander: NonNullable<T["commander"]> | null;
+  };
+}
 
 /**
  * Generate a URL-friendly slug from a string
@@ -89,14 +110,16 @@ export const listsRouter = {
         createdAt: virtualList.createdAt,
         updatedAt: virtualList.updatedAt,
         cardCount: sql<number>`count(${virtualListCard.id})`.as("card_count"),
+        commander: commanderSelectFields,
       })
       .from(virtualList)
       .leftJoin(virtualListCard, eq(virtualListCard.virtualListId, virtualList.id))
+      .leftJoin(commanderCard, eq(virtualList.commanderScryfallCardId, commanderCard.id))
       .where(eq(virtualList.userId, userId))
       .groupBy(virtualList.id)
       .orderBy(asc(virtualList.name));
 
-    return lists;
+    return lists.map(normalizeCommander);
   }),
 
   // Get a single list by ID
@@ -117,12 +140,15 @@ export const listsRouter = {
           snapshotDate: virtualList.snapshotDate,
           isPublic: virtualList.isPublic,
           slug: virtualList.slug,
+          commanderScryfallCardId: virtualList.commanderScryfallCardId,
           createdAt: virtualList.createdAt,
           updatedAt: virtualList.updatedAt,
           cardCount: sql<number>`count(${virtualListCard.id})`.as("card_count"),
+          commander: commanderSelectFields,
         })
         .from(virtualList)
         .leftJoin(virtualListCard, eq(virtualListCard.virtualListId, virtualList.id))
+        .leftJoin(commanderCard, eq(virtualList.commanderScryfallCardId, commanderCard.id))
         .where(and(eq(virtualList.id, input.id), eq(virtualList.userId, userId)))
         .groupBy(virtualList.id);
 
@@ -130,7 +156,7 @@ export const listsRouter = {
         throw new ORPCError("NOT_FOUND", { message: "List not found" });
       }
 
-      return list;
+      return normalizeCommander(list);
     }),
 
   // Create a new virtual list
@@ -142,10 +168,19 @@ export const listsRouter = {
         listType: listTypeSchema.default("owned"),
         sourceType: z.enum(["gift", "purchase", "trade", "other"]).optional(),
         sourceName: z.string().max(100).optional(),
+        commanderScryfallCardId: z.string().optional(),
       }),
     )
     .handler(async ({ context, input }) => {
       const userId = context.session.user.id;
+
+      // Ensure the commander card exists in the database if provided
+      if (input.commanderScryfallCardId) {
+        const card = await ensureScryfallCard(input.commanderScryfallCardId);
+        if (!card) {
+          throw new ORPCError("BAD_REQUEST", { message: "Commander card not found" });
+        }
+      }
 
       // Generate a unique slug from the list name
       const slug = await generateUniqueSlug(input.name, userId);
@@ -159,6 +194,7 @@ export const listsRouter = {
           listType: input.listType,
           sourceType: input.sourceType ?? null,
           sourceName: input.sourceName ?? null,
+          commanderScryfallCardId: input.commanderScryfallCardId ?? null,
           slug,
         })
         .returning();
@@ -166,7 +202,7 @@ export const listsRouter = {
       return list;
     }),
 
-  // Update a virtual list (name, description, isPublic, slug)
+  // Update a virtual list (name, description, isPublic, slug, commander)
   update: protectedProcedure
     .input(
       z.object({
@@ -175,6 +211,7 @@ export const listsRouter = {
         description: z.string().max(500).optional().nullable(),
         isPublic: z.boolean().optional(),
         slug: z.string().min(1).max(100).optional(),
+        commanderScryfallCardId: z.string().nullable().optional(),
       }),
     )
     .handler(async ({ context, input }) => {
@@ -188,6 +225,14 @@ export const listsRouter = {
 
       if (!existingList) {
         throw new ORPCError("NOT_FOUND", { message: "List not found" });
+      }
+
+      // Ensure the commander card exists in the database if setting one
+      if (input.commanderScryfallCardId) {
+        const card = await ensureScryfallCard(input.commanderScryfallCardId);
+        if (!card) {
+          throw new ORPCError("BAD_REQUEST", { message: "Commander card not found" });
+        }
       }
 
       // If making the list public and it doesn't have a slug, generate one
@@ -216,6 +261,9 @@ export const listsRouter = {
           ...(input.description !== undefined && { description: input.description }),
           ...(input.isPublic !== undefined && { isPublic: input.isPublic }),
           ...(slugToUse !== undefined && { slug: slugToUse }),
+          ...(input.commanderScryfallCardId !== undefined && {
+            commanderScryfallCardId: input.commanderScryfallCardId,
+          }),
         })
         .where(eq(virtualList.id, input.id))
         .returning();
@@ -630,9 +678,11 @@ export const listsRouter = {
           createdAt: virtualList.createdAt,
           updatedAt: virtualList.updatedAt,
           cardCount: sql<number>`count(${virtualListCard.id})`.as("card_count"),
+          commander: commanderSelectFields,
         })
         .from(virtualList)
         .leftJoin(virtualListCard, eq(virtualListCard.virtualListId, virtualList.id))
+        .leftJoin(commanderCard, eq(virtualList.commanderScryfallCardId, commanderCard.id))
         .where(
           and(
             eq(virtualList.userId, input.userId),
@@ -646,7 +696,7 @@ export const listsRouter = {
         throw new ORPCError("NOT_FOUND", { message: "List not found or not public" });
       }
 
-      return list;
+      return normalizeCommander(list);
     }),
 
   /**

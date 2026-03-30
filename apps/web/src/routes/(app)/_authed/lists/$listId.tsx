@@ -23,9 +23,12 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
+import { CommanderDisplay } from "@/components/commander-display";
+import { CommanderSearchDialog } from "@/components/commander-search-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { CardSearchDialog } from "@/components/card-search";
 import { DeleteListDialog } from "@/components/delete-list-dialog";
+import { buildCommanderSearchPrefix } from "@/lib/commander-utils";
 import type { SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
@@ -69,6 +72,7 @@ function ListDetailPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isCommanderSearchOpen, setIsCommanderSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
   const [isRemoveMode, setIsRemoveMode] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -76,6 +80,10 @@ function ListDetailPage() {
   const [editName, setEditName] = useState(list.name);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const commanderSearchPrefix = list.commander
+    ? buildCommanderSearchPrefix([list.commander.colorIdentity])
+    : undefined;
 
   useEffect(() => {
     if (isRenaming) {
@@ -390,7 +398,12 @@ function ListDetailPage() {
         onOpenChange={setIsSearchOpen}
         onSelect={handleAddFromSearch}
         title={`Add Cards to "${list.name}"`}
-        description="Search for Magic cards to add to this list. You can select multiple cards and specify quantities."
+        description={
+          commanderSearchPrefix
+            ? "Search results are filtered to cards legal in Commander within your commander's color identity."
+            : "Search for Magic cards to add to this list. You can select multiple cards and specify quantities."
+        }
+        searchPrefix={commanderSearchPrefix}
       />
 
       <PageContent ref={scrollContainerRef}>
@@ -418,6 +431,22 @@ function ListDetailPage() {
             {new Date(list.createdAt).toLocaleDateString()}
           </div>
         </div>
+
+        <CommanderDisplay
+          commander={list.commander}
+          onSet={() => setIsCommanderSearchOpen(true)}
+          onChange={() => setIsCommanderSearchOpen(true)}
+          onRemove={() => updateMutation.mutate({ id: listId, commanderScryfallCardId: null })}
+          disabled={updateMutation.isPending}
+        />
+
+        <CommanderSearchDialog
+          open={isCommanderSearchOpen}
+          onOpenChange={setIsCommanderSearchOpen}
+          onSelect={(card) =>
+            updateMutation.mutate({ id: listId, commanderScryfallCardId: card.id })
+          }
+        />
 
         {/* Public sharing section */}
         <div className="mb-6 rounded-lg border bg-card p-4">

@@ -617,6 +617,8 @@ export const decksRouter = {
             z.object({
               scryfallId: z.string(),
               quantity: z.number().int().positive().default(1),
+              /** Whether this card is a commander (for Commander format decks) */
+              isCommander: z.boolean().optional(),
             }),
           )
           .min(1, "At least one card is required"),
@@ -664,7 +666,7 @@ export const decksRouter = {
             preferredScryfallId: card.id,
             quantity: cardInput.quantity,
             board: input.board,
-            isCommander: false,
+            isCommander: cardInput.isCommander ?? false,
             isCompanion: false,
             isProxy: false,
           });

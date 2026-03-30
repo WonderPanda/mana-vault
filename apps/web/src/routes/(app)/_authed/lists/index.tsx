@@ -3,6 +3,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Gift, Heart, ListChecks, Plus, ShoppingCart, Sparkles } from "lucide-react";
 import { useState } from "react";
 
+import type { ScryfallCard } from "@/types/scryfall";
+import { CommanderPicker } from "@/components/commander-picker";
+
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -80,6 +83,12 @@ interface VirtualList {
   createdAt: Date;
   updatedAt: Date;
   cardCount: number;
+  commander: {
+    id: string;
+    name: string;
+    imageUri: string | null;
+    colorIdentity: string | null;
+  } | null;
 }
 
 function ListCard({ list }: { list: VirtualList }) {
@@ -87,6 +96,47 @@ function ListCard({ list }: { list: VirtualList }) {
   const TypeIcon = getListTypeIcon(list.listType, list.sourceType);
   const isWishlist = list.listType === "wishlist";
 
+  // Featured layout when a commander is set
+  if (list.commander) {
+    return (
+      <Card
+        className="group cursor-pointer overflow-hidden transition-all hover:ring-2 hover:ring-primary/50"
+        onClick={() => navigate({ to: "/lists/$listId", params: { listId: list.id } })}
+      >
+        <div className="relative h-32 overflow-hidden bg-gradient-to-b from-muted to-muted/50">
+          {list.commander.imageUri && (
+            <img
+              src={list.commander.imageUri}
+              alt={list.commander.name}
+              className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+          <div className="absolute right-0 bottom-0 left-0 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="truncate font-semibold text-foreground">{list.name}</h3>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </div>
+        </div>
+        <CardContent className="p-3">
+          <p className="mb-2 truncate text-sm font-medium text-foreground/80">
+            {list.commander.name}
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              {list.cardCount} {list.cardCount === 1 ? "card" : "cards"}
+            </span>
+            <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {getListDescription(list.listType, list.sourceType)}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Default icon-based layout
   return (
     <Card
       className="cursor-pointer transition-colors hover:bg-accent/50"
@@ -176,6 +226,7 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
   const [sourceType, setSourceType] = useState<"gift" | "purchase" | "trade" | "other" | "">("");
   const [sourceName, setSourceName] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedCommander, setSelectedCommander] = useState<ScryfallCard | null>(null);
 
   const createMutation = useMutation({
     ...orpc.lists.create.mutationOptions(),
@@ -188,6 +239,7 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
       setSourceType("");
       setSourceName("");
       setDescription("");
+      setSelectedCommander(null);
       onSuccess();
     },
   });
@@ -201,6 +253,7 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
       sourceType: sourceType || undefined,
       sourceName: sourceName.trim() || undefined,
       description: description.trim() || undefined,
+      commanderScryfallCardId: selectedCommander?.id,
     });
   };
 
@@ -286,6 +339,12 @@ function CreateListDialog({ onSuccess }: { onSuccess: () => void }) {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+          <CommanderPicker
+            selectedCommander={selectedCommander}
+            onSelect={setSelectedCommander}
+            onClear={() => setSelectedCommander(null)}
+            helperText="Optionally associate a commander with this list."
+          />
         </div>
         <DialogFooter>
           <Button type="submit" disabled={!name.trim() || createMutation.isPending}>

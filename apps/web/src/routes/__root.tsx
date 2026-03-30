@@ -65,7 +65,7 @@ function useRapidClickToggle(clickCount = 5, timeWindow = 1000) {
 }
 
 function RootComponent() {
-  const showDevtools = useRapidClickToggle(3, 1000);
+  const showDevtools = useRapidClickToggle(5, 1000);
 
   return (
     <>

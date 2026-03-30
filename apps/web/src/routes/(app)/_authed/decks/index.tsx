@@ -1,7 +1,11 @@
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Swords } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
+import type { ScryfallCard } from "@/types/scryfall";
+import { CommanderPicker } from "@/components/commander-picker";
 import { PageContent, PageHeader, PageLayout, PageTitle } from "@/components/page-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -28,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { eq, sum, useLiveSuspenseQuery } from "@tanstack/react-db";
 import { useDbCollections } from "@/lib/db/db-context";
 import type { ScryfallCardDoc } from "@/lib/db/db";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/decks/")({
   component: DecksPage,
@@ -278,13 +283,63 @@ function CreateDeckDialog({ onSuccess }: { onSuccess: (deckId: string) => void }
   const [status, setStatus] = useState<DeckStatus>("in_progress");
   const [archetype, setArchetype] = useState<DeckArchetype | "">("");
   const [description, setDescription] = useState("");
+  const [selectedCommander, setSelectedCommander] = useState<ScryfallCard | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const { deckCollection } = useDbCollections();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const createDeckMutation = useMutation(orpc.decks.create.mutationOptions());
+  const addCardsMutation = useMutation(orpc.decks.addCardsFromSearch.mutationOptions());
 
+  const isCommander = format === "commander";
+
+  const resetForm = () => {
+    setName("");
+    setFormat("commander");
+    setStatus("in_progress");
+    setArchetype("");
+    setDescription("");
+    setSelectedCommander(null);
+    setIsCreating(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || isCreating) return;
+
+    // Commander deck with commander selected: create via API so we can add the commander card
+    if (isCommander && selectedCommander) {
+      setIsCreating(true);
+      try {
+        const colorIdentity = selectedCommander.color_identity;
+        const newDeck = await createDeckMutation.mutateAsync({
+          name: name.trim(),
+          format,
+          status,
+          archetype: archetype || undefined,
+          colorIdentity: colorIdentity ? JSON.stringify(colorIdentity) : undefined,
+          description: description.trim() || undefined,
+        });
+
+        if (newDeck) {
+          await addCardsMutation.mutateAsync({
+            deckId: newDeck.id,
+            cards: [{ scryfallId: selectedCommander.id, quantity: 1, isCommander: true }],
+            board: "main",
+            addToCollection: false,
+          });
+
+          resetForm();
+          onSuccess(newDeck.id);
+        }
+      } catch {
+        toast.error("Failed to create deck");
+        setIsCreating(false);
+      }
+      return;
+    }
+
+    // Default: create locally (existing behavior)
     const deckId = crypto.randomUUID();
     const now = Date.now();
     deckCollection.insert({
@@ -302,11 +357,7 @@ function CreateDeckDialog({ onSuccess }: { onSuccess: (deckId: string) => void }
       _deleted: false,
     });
 
-    setName("");
-    setFormat("commander");
-    setStatus("in_progress");
-    setArchetype("");
-    setDescription("");
+    resetForm();
     onSuccess(deckId);
   };
 
@@ -331,7 +382,14 @@ function CreateDeckDialog({ onSuccess }: { onSuccess: (deckId: string) => void }
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="format">Format</Label>
-              <Select value={format} onValueChange={(v) => setFormat(v as DeckFormat)}>
+              <Select
+                value={format}
+                onValueChange={(v) => {
+                  setFormat(v as DeckFormat);
+                  // Clear commander if switching away from commander format
+                  if (v !== "commander") setSelectedCommander(null);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -361,6 +419,13 @@ function CreateDeckDialog({ onSuccess }: { onSuccess: (deckId: string) => void }
               </Select>
             </div>
           </div>
+          {isCommander && (
+            <CommanderPicker
+              selectedCommander={selectedCommander}
+              onSelect={setSelectedCommander}
+              onClear={() => setSelectedCommander(null)}
+            />
+          )}
           <div className="grid gap-2">
             <Label htmlFor="archetype">Archetype (optional)</Label>
             <Select value={archetype} onValueChange={(v) => setArchetype(v as DeckArchetype | "")}>
@@ -389,8 +454,8 @@ function CreateDeckDialog({ onSuccess }: { onSuccess: (deckId: string) => void }
           </div>
         </div>
         <DialogFooter>
-          <Button type="submit" disabled={!name.trim()}>
-            Create
+          <Button type="submit" disabled={!name.trim() || isCreating}>
+            {isCreating ? "Creating..." : "Create"}
           </Button>
         </DialogFooter>
       </form>

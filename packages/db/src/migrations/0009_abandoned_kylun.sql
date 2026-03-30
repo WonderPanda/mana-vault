@@ -1,0 +1,1 @@
+ALTER TABLE `virtual_list` ADD `commander_scryfall_card_id` text REFERENCES scryfall_card(id);
