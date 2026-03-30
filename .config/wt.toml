@@ -23,6 +23,10 @@ copy = "wt step copy-ignored"
 lint = "bun run check"
 typecheck = "bun run check-types"
 
+# Clean up leftover gitignored files after worktree removal
+[post-remove]
+cleanup = "[ -d {{ worktree_path }} ] && rm -rf {{ worktree_path }} || true"
+
 # Show dev server URL in wt list
 [list]
 url = "http://localhost:{{ branch | hash_port }}"
