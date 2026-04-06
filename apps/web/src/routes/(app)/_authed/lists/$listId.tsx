@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Check,
   Gift,
-  Globe,
   Heart,
   ListChecks,
   Minus,
@@ -48,7 +47,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/lists/$listId")({
@@ -366,6 +364,13 @@ function ListDetailPage() {
                 Remove Cards
               </DropdownMenuItem>
               <DropdownMenuItem
+                disabled={updateMutation.isPending}
+                onClick={() => handleTogglePublic(!list.isPublic)}
+              >
+                <Share2 className="mr-2 h-4 w-4" />
+                {list.isPublic ? "Make Private" : "Make Public"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setIsDeleteOpen(true)}
               >
@@ -447,27 +452,6 @@ function ListDetailPage() {
             updateMutation.mutate({ id: listId, commanderScryfallCardId: card.id })
           }
         />
-
-        {/* Public sharing section */}
-        <div className="mb-6 rounded-lg border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Globe className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <div className="text-base font-medium">Public List</div>
-                <p className="text-sm text-muted-foreground">
-                  Allow anyone with the link to view this list
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="public-toggle"
-              checked={list.isPublic}
-              onCheckedChange={handleTogglePublic}
-              disabled={updateMutation.isPending}
-            />
-          </div>
-        </div>
 
         {/* Remove mode action bar */}
         {isRemoveMode && (
