@@ -37,7 +37,8 @@
       "Bash(curl -sI https://mana-vault-web-staging.pandaverse.workers.dev/manifest.json)",
       "Bash(curl -sI https://mana-vault-web-staging.pandaverse.workers.dev/manifest.webmanifest)",
       "Bash(curl -s https://mana-vault-web-staging.pandaverse.workers.dev/)",
-      "Bash(bunx tsc:*)"
+      "Bash(bunx tsc:*)",
+      "Bash(bun outdated:*)"
     ]
   }
 }

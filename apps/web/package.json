@@ -24,6 +24,8 @@
     "@orpc/tanstack-query": "catalog:",
     "@polar-sh/better-auth": "catalog:",
     "@tailwindcss/vite": "^4.0.15",
+    "@tanstack/db": "catalog:",
+    "@tanstack/query-core": "catalog:",
     "@tanstack/react-db": "catalog:",
     "@tanstack/react-form": "^1.12.3",
     "@tanstack/react-query": "catalog:",

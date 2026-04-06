@@ -21,11 +21,13 @@
       "libsql": "0.5.22",
       "@orpc/tanstack-query": "^1.12.2",
       "@orpc/client": "^1.12.2",
-      "@tanstack/react-query": "^5.90.12",
+      "@tanstack/query-core": "^5.96.2",
+      "@tanstack/react-query": "^5.96.2",
       "@polar-sh/better-auth": "^1.6.4",
       "@better-auth/expo": "^1.4.9",
-      "@tanstack/react-db": "^0.1.67",
-      "@tanstack/rxdb-db-collection": "^0.1.55",
+      "@tanstack/db": "^0.6.2",
+      "@tanstack/react-db": "^0.1.80",
+      "@tanstack/rxdb-db-collection": "^0.1.68",
       "rxdb": "^16.21.1",
       "posthog-js": "^1.336.4"
     }
@@ -54,6 +56,7 @@
   },
   "dependencies": {
     "@mana-vault/env": "workspace:*",
+    "@tanstack/db": "catalog:",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
@@ -68,6 +71,9 @@
     "shadcn": "^3.7.0",
     "turbo": "^2.6.3",
     "typescript": "catalog:"
+  },
+  "overrides": {
+    "@tanstack/query-core": "catalog:"
   },
   "packageManager": "bun@1.3.6"
 }
