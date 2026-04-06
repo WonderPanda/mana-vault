@@ -27,7 +27,9 @@ const shouldWait = args.includes("--wait");
 function findD1Database(): string | null {
   if (!existsSync(d1ObjDir)) return null;
 
-  const sqliteFiles = readdirSync(d1ObjDir).filter((f) => f.endsWith(".sqlite"));
+  const sqliteFiles = readdirSync(d1ObjDir).filter(
+    (f) => f.endsWith(".sqlite") && f !== "metadata.sqlite",
+  );
   if (sqliteFiles.length === 0) return null;
 
   return resolve(d1ObjDir, sqliteFiles[0]!);

@@ -26,7 +26,9 @@ function findD1Database(): string {
     );
   }
 
-  const sqliteFiles = readdirSync(d1ObjDir).filter((f) => f.endsWith(".sqlite"));
+  const sqliteFiles = readdirSync(d1ObjDir).filter(
+    (f) => f.endsWith(".sqlite") && f !== "metadata.sqlite",
+  );
 
   if (sqliteFiles.length === 0) {
     throw new Error("No D1 database found in .alchemy/miniflare/v3/d1/");

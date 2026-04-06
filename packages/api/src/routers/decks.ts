@@ -617,6 +617,8 @@ export const decksRouter = {
         cards: z
           .array(
             z.object({
+              /** Optional client-generated ID for optimistic inserts */
+              id: z.string().optional(),
               scryfallId: z.string(),
               quantity: z.number().int().positive().default(1),
               /** Whether this card is a commander (for Commander format decks) */
@@ -662,16 +664,21 @@ export const decksRouter = {
 
         try {
           // Create deck_card entry with oracle_id and preferred printing
-          await db.insert(deckCard).values({
-            deckId: input.deckId,
-            oracleId: card.oracleId,
-            preferredScryfallId: card.id,
-            quantity: cardInput.quantity,
-            board: input.board,
-            isCommander: cardInput.isCommander ?? false,
-            isCompanion: false,
-            isProxy: false,
-          });
+          // Uses onConflictDoNothing so push replication and this call don't race
+          await db
+            .insert(deckCard)
+            .values({
+              id: cardInput.id,
+              deckId: input.deckId,
+              oracleId: card.oracleId,
+              preferredScryfallId: card.id,
+              quantity: cardInput.quantity,
+              board: input.board,
+              isCommander: cardInput.isCommander ?? false,
+              isCompanion: false,
+              isProxy: false,
+            })
+            .onConflictDoNothing();
 
           // Touch the scryfall card's updated_at to trigger replication sync
           // This ensures the client pulls the scryfall card data even if it already existed in the DB
@@ -1092,6 +1099,14 @@ export const decksRouter = {
 
             if (inserted) {
               changedDocs.push(toDeckCardReplicationDoc(inserted, false));
+
+              // Touch scryfall card to trigger client-side replication sync
+              if (newDocumentState.preferredScryfallId) {
+                await db
+                  .update(scryfallCard)
+                  .set({ updatedAt: now })
+                  .where(eq(scryfallCard.id, newDocumentState.preferredScryfallId));
+              }
             }
           } else if (currentRow) {
             // Update existing document

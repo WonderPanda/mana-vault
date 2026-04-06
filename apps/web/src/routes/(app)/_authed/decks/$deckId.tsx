@@ -11,7 +11,7 @@ import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { CardSearchDialog } from "@/components/card-search";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
-import type { SelectedCard } from "@/types/scryfall";
+import { getCardImageUri, type SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGrid,
@@ -46,7 +46,7 @@ import {
 } from "@/hooks/use-deck-cards";
 import { buildCommanderSearchPrefix } from "@/lib/commander-utils";
 import { useDbCollections } from "@/lib/db/db-context";
-import { orpc, queryClient } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 const deckDetailSearchSchema = z.object({
   board: z.enum(["main", "sideboard", "maybeboard"]).optional().catch("main"),
@@ -120,17 +120,6 @@ function DeckDetailPage() {
     },
   });
 
-  const addCardsMutation = useMutation({
-    ...orpc.decks.addCardsFromSearch.mutationOptions(),
-    onSuccess: (data) => {
-      toast.success(data.message);
-      // RxDB sync handles the UI update via deckCardPublisher RESYNC event
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to add cards");
-    },
-  });
-
   const handleImport = (data: CardImportData) => {
     importMutation.mutate({
       deckId,
@@ -145,19 +134,81 @@ function DeckDetailPage() {
     deleteMutation.mutate({ id: deckId });
   };
 
-  const handleAddFromSearch = (cards: SelectedCard[], options?: { addToCollection?: boolean }) => {
-    addCardsMutation.mutate({
-      deckId,
-      cards: cards.map((c) => ({
-        scryfallId: c.card.id,
-        quantity: c.quantity,
-      })),
-      board: activeBoard,
-      addToCollection: options?.addToCollection ?? false,
-    });
-  };
+  const { deckCardCollection, scryfallCardCollection } = useDbCollections();
 
-  const { deckCardCollection } = useDbCollections();
+  const handleAddFromSearch = (cards: SelectedCard[], options?: { addToCollection?: boolean }) => {
+    const addToCollection = options?.addToCollection ?? false;
+    const cardsWithIds = cards.map((c) => ({ id: crypto.randomUUID(), card: c }));
+    const now = Date.now();
+
+    // Optimistic insert — appears instantly via TanStack DB → RxDB push replication
+    for (const { id, card } of cardsWithIds) {
+      // Ensure scryfall card is in the local collection so live query joins work.
+      // Ignore DuplicateKeyError if it already exists from a previous add/sync.
+      try {
+        scryfallCardCollection.insert({
+          id: card.card.id,
+          oracleId: card.card.oracle_id,
+          name: card.card.name,
+          setCode: card.card.set,
+          setName: card.card.set_name,
+          collectorNumber: card.card.collector_number,
+          rarity: card.card.rarity,
+          manaCost: card.card.mana_cost ?? null,
+          cmc: card.card.cmc ?? null,
+          typeLine: card.card.type_line ?? null,
+          oracleText: card.card.oracle_text ?? null,
+          colors: card.card.colors ? JSON.stringify(card.card.colors) : null,
+          colorIdentity: card.card.color_identity ? JSON.stringify(card.card.color_identity) : null,
+          imageUri: getCardImageUri(card.card) ?? null,
+          scryfallUri: card.card.scryfall_uri,
+          priceUsd: null,
+          priceUsdFoil: null,
+          priceUsdEtched: null,
+          dataJson: null,
+          createdAt: now,
+          updatedAt: now,
+          _deleted: false,
+        });
+      } catch {
+        // Already exists — that's fine
+      }
+
+      deckCardCollection.insert({
+        id,
+        deckId,
+        oracleId: card.card.oracle_id,
+        preferredScryfallId: card.card.id,
+        quantity: card.quantity,
+        board: activeBoard,
+        isCommander: false,
+        isCompanion: false,
+        collectionCardId: null,
+        isProxy: false,
+        sortOrder: 0,
+        createdAt: now,
+        updatedAt: now,
+        _deleted: false,
+      });
+    }
+
+    const totalQuantity = cards.reduce((sum, c) => sum + c.quantity, 0);
+    toast.success(`Added ${totalQuantity} card${totalQuantity !== 1 ? "s" : ""} to the deck.`);
+
+    // If addToCollection, call server to create collection cards
+    if (addToCollection) {
+      client.decks.addCardsFromSearch({
+        deckId,
+        cards: cardsWithIds.map(({ id, card }) => ({
+          id,
+          scryfallId: card.card.id,
+          quantity: card.quantity,
+        })),
+        board: activeBoard,
+        addToCollection: true,
+      });
+    }
+  };
 
   const handleRemoveCard = useCallback(
     (card: MtgCardData) => {
