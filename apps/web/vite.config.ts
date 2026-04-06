@@ -11,7 +11,7 @@ export default defineConfig({
     tanstackRouter({}),
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       manifestFilename: "manifest.json",
       manifest: {
         name: "Mana Vault",
@@ -26,7 +26,6 @@ export default defineConfig({
       pwaAssets: { disabled: false, config: true },
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         navigateFallback: "/index.html",

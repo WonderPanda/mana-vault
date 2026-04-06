@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
+import { toast } from "sonner";
 import "@fontsource/inter";
 import { PostHogProvider } from "posthog-js/react";
 
@@ -9,12 +10,17 @@ import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
 
-registerSW({
+const updateSW = registerSW({
   onNeedRefresh() {
-    window.location.reload();
+    toast("A new version is available", {
+      duration: Infinity,
+      action: {
+        label: "Update",
+        onClick: () => updateSW(true),
+      },
+    });
   },
 });
-
 const router = createRouter({
   routeTree,
   defaultPreload: "intent",
