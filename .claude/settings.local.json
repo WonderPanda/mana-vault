@@ -31,7 +31,12 @@
       "Bash(git commit:*)",
       "Bash(git:*)",
       "Bash(agent-browser get:*)",
-      "Bash(agent-browser press:*)"
+      "Bash(agent-browser press:*)",
+      "WebFetch(domain:mana-vault-web-staging.pandaverse.workers.dev)",
+      "Bash(bun run:*)",
+      "Bash(curl -sI https://mana-vault-web-staging.pandaverse.workers.dev/manifest.json)",
+      "Bash(curl -sI https://mana-vault-web-staging.pandaverse.workers.dev/manifest.webmanifest)",
+      "Bash(curl -s https://mana-vault-web-staging.pandaverse.workers.dev/)"
     ]
   }
 }

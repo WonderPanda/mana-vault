@@ -115,3 +115,65 @@ Failed to resolve import "workbox-window" from "/@vite-plugin-pwa/virtual:pwa-re
      }
    }
    ```
+
+---
+
+## 4. PWA manifest not recognized on Cloudflare Workers (no install prompt)
+
+**Symptom:** The browser never shows the PWA install prompt (desktop install icon, "Add to Home Screen" banner). Chrome DevTools Application panel shows the manifest is loaded but the installability check fails.
+
+**Cause:** `vite-plugin-pwa` outputs `manifest.webmanifest` by default. Cloudflare Workers (via Alchemy's `Vite` resource) doesn't map the `.webmanifest` extension to a MIME type, so the file is served without a `Content-Type` header. Browsers require a recognized content type (`application/manifest+json` or `application/json`) to parse the manifest.
+
+**Verify:** Check the response headers of the manifest URL:
+
+```bash
+curl -sI https://your-app.workers.dev/manifest.webmanifest | grep content-type
+# If missing or wrong, this is the issue
+```
+
+**Fix:** Set `manifestFilename` to `manifest.json` in the PWA plugin config. Cloudflare Workers serves `.json` files with `content-type: application/json`, which browsers accept for PWA manifests.
+
+```typescript
+// apps/web/vite.config.ts
+VitePWA({
+  registerType: "autoUpdate",
+  manifestFilename: "manifest.json", // ← add this
+  manifest: { /* ... */ },
+  // ...
+})
+```
+
+---
+
+## 5. PWA icons not generated (missing install prompt)
+
+**Symptom:** The PWA manifest exists but has no `icons` array, or the icon files 404. The browser won't show the install prompt without valid 192x192 and 512x512 icons.
+
+**Cause:** The template sets up `@vite-pwa/assets-generator` with a `pwa-assets.config.ts` file and a `generate-pwa-assets` script, but the icon generation is handled automatically by the `pwaAssets` integration in `vite-plugin-pwa` during builds — no manual step needed. However, if `pwaAssets` is not configured, or if the source image is missing, no icons are generated.
+
+**Fix:** Ensure these three pieces are in place:
+
+1. A source image at `apps/web/public/logo.png` (at least 512x512 px recommended)
+
+2. A `pwa-assets.config.ts` in `apps/web/`:
+
+   ```typescript
+   import { defineConfig, minimal2023Preset as preset } from "@vite-pwa/assets-generator/config";
+
+   export default defineConfig({
+     headLinkOptions: { preset: "2023" },
+     preset,
+     images: ["public/logo.png"],
+   });
+   ```
+
+3. The `pwaAssets` integration enabled in `vite.config.ts`:
+
+   ```typescript
+   VitePWA({
+     // ...
+     pwaAssets: { disabled: false, config: true },
+   })
+   ```
+
+The Vite build will then auto-generate all required icons (64x64, 192x192, 512x512, maskable, apple-touch-icon, favicon) and inject them into the manifest and HTML. No separate `generate-pwa-assets` step is needed in CI/deploy.

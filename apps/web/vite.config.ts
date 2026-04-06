@@ -12,6 +12,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      manifestFilename: "manifest.json",
       manifest: {
         name: "Mana Vault",
         short_name: "Mana Vault",
