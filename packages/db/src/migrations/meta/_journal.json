@@ -71,6 +71,13 @@
       "when": 1774897806789,
       "tag": "0009_abandoned_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1775506445846,
+      "tag": "0010_faithful_fantastic_four",
+      "breakpoints": true
     }
   ]
 }

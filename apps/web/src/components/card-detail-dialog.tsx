@@ -4,13 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MtgCardData } from "./mtg-card-grid";
 import { Dialog, DialogContent } from "./ui/dialog";
 
+export interface CardDetailAction {
+  icon: React.ReactNode;
+  label: string;
+  onClick: (card: MtgCardData) => void;
+  variant?: "default" | "destructive";
+}
+
 interface CardDetailDialogProps {
   cards: MtgCardData[];
   selectedIndex: number | null;
   onClose: () => void;
+  actions?: CardDetailAction[];
 }
 
-export function CardDetailDialog({ cards, selectedIndex, onClose }: CardDetailDialogProps) {
+export function CardDetailDialog({
+  cards,
+  selectedIndex,
+  onClose,
+  actions,
+}: CardDetailDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(selectedIndex ?? 0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -21,6 +34,16 @@ export function CardDetailDialog({ cards, selectedIndex, onClose }: CardDetailDi
       setCurrentIndex(selectedIndex);
     }
   }, [selectedIndex]);
+
+  // Clamp index when cards array shrinks (e.g., after card removal)
+  useEffect(() => {
+    if (selectedIndex === null) return;
+    if (cards.length === 0) {
+      onClose();
+    } else if (currentIndex >= cards.length) {
+      setCurrentIndex(cards.length - 1);
+    }
+  }, [cards.length, currentIndex, selectedIndex, onClose]);
 
   const isOpen = selectedIndex !== null;
   const card = cards[currentIndex];
@@ -198,6 +221,28 @@ export function CardDetailDialog({ cards, selectedIndex, onClose }: CardDetailDi
               </div>
             )}
           </div>
+
+          {/* Action toolbar */}
+          {actions && actions.length > 0 && (
+            <div className="mt-2 flex items-center justify-center gap-1 rounded-lg bg-background/90 px-3 py-2 backdrop-blur-sm">
+              {actions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={() => action.onClick(card)}
+                  className={`rounded-lg p-2.5 transition-colors ${
+                    action.variant === "destructive"
+                      ? "text-destructive hover:bg-destructive/10"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  aria-label={action.label}
+                  title={action.label}
+                >
+                  {action.icon}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

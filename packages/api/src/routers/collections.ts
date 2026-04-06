@@ -18,6 +18,8 @@ import {
   collectionCardLocationPublisher,
   storageContainerPublisher,
   toStorageContainerReplicationDoc,
+  toCollectionCardReplicationDoc,
+  type CollectionCardReplicationDoc,
   type CollectionCardStreamEvent,
   type CollectionCardLocationStreamEvent,
   type StorageContainerStreamEvent,
@@ -706,6 +708,144 @@ export const collectionsRouter = {
   },
 
   cardSync: {
+    /**
+     * Push endpoint for collection card replication.
+     * Handles client→server writes (updates & deletes) with conflict resolution.
+     * Deletions are soft deletes (sets deletedAt).
+     */
+    push: protectedProcedure
+      .input(
+        z.object({
+          rows: z.array(
+            z.object({
+              newDocumentState: z.object({
+                id: z.string(),
+                userId: z.string(),
+                scryfallCardId: z.string(),
+                condition: z.string(),
+                isFoil: z.boolean(),
+                language: z.string(),
+                notes: z.string().nullable(),
+                acquiredAt: z.number().nullable(),
+                acquiredFrom: z.string().nullable(),
+                status: z.string(),
+                removedAt: z.number().nullable(),
+                createdAt: z.number(),
+                updatedAt: z.number(),
+                _deleted: z.boolean(),
+              }),
+              assumedMasterState: z
+                .object({
+                  id: z.string(),
+                  userId: z.string(),
+                  scryfallCardId: z.string(),
+                  condition: z.string(),
+                  isFoil: z.boolean(),
+                  language: z.string(),
+                  notes: z.string().nullable(),
+                  acquiredAt: z.number().nullable(),
+                  acquiredFrom: z.string().nullable(),
+                  status: z.string(),
+                  removedAt: z.number().nullable(),
+                  createdAt: z.number(),
+                  updatedAt: z.number(),
+                  _deleted: z.boolean(),
+                })
+                .nullable(),
+            }),
+          ),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { rows } = input;
+        const conflicts: CollectionCardReplicationDoc[] = [];
+        const changedDocs: CollectionCardReplicationDoc[] = [];
+
+        for (const row of rows) {
+          const { newDocumentState, assumedMasterState } = row;
+
+          // Only allow writes to the user's own collection cards
+          if (newDocumentState.userId !== userId) continue;
+
+          // Look up current master state
+          const [currentRow] = await db
+            .select()
+            .from(collectionCard)
+            .where(
+              and(eq(collectionCard.id, newDocumentState.id), eq(collectionCard.userId, userId)),
+            )
+            .limit(1);
+
+          if (newDocumentState._deleted) {
+            // Soft delete
+            if (currentRow) {
+              const masterUpdatedAt = currentRow.updatedAt.getTime();
+              const assumedUpdatedAt = assumedMasterState?.updatedAt;
+
+              if (assumedUpdatedAt === masterUpdatedAt) {
+                const now = new Date();
+                const [updated] = await db
+                  .update(collectionCard)
+                  .set({ deletedAt: now })
+                  .where(eq(collectionCard.id, newDocumentState.id))
+                  .returning();
+
+                if (updated) {
+                  changedDocs.push(toCollectionCardReplicationDoc(updated, true));
+                }
+              } else {
+                conflicts.push(
+                  toCollectionCardReplicationDoc(currentRow, currentRow.deletedAt !== null),
+                );
+              }
+            }
+          } else if (currentRow) {
+            // Update existing document
+            const masterUpdatedAt = currentRow.updatedAt.getTime();
+            const assumedUpdatedAt = assumedMasterState?.updatedAt;
+
+            if (assumedUpdatedAt === masterUpdatedAt) {
+              const [updated] = await db
+                .update(collectionCard)
+                .set({
+                  condition: newDocumentState.condition,
+                  isFoil: newDocumentState.isFoil,
+                  language: newDocumentState.language,
+                  notes: newDocumentState.notes,
+                  status: newDocumentState.status,
+                  deletedAt: null, // Un-delete if re-inserted
+                })
+                .where(eq(collectionCard.id, newDocumentState.id))
+                .returning();
+
+              if (updated) {
+                changedDocs.push(toCollectionCardReplicationDoc(updated, false));
+              }
+            } else {
+              conflicts.push(
+                toCollectionCardReplicationDoc(currentRow, currentRow.deletedAt !== null),
+              );
+            }
+          } else {
+            if (assumedMasterState) {
+              conflicts.push({ ...assumedMasterState, _deleted: true });
+            }
+          }
+        }
+
+        // Publish changed docs to SSE stream for other clients
+        if (changedDocs.length > 0) {
+          const lastDoc = changedDocs[changedDocs.length - 1]!;
+          collectionCardPublisher.publish(userId, {
+            documents: changedDocs,
+            checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
+          });
+        }
+
+        return { conflicts };
+      }),
+
     /**
      * Pull endpoint for collection card replication.
      * Returns all collection cards owned by the user, including soft-deleted ones.

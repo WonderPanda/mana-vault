@@ -9,12 +9,15 @@ import {
   Search,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
+import type { CardDetailAction } from "@/components/card-detail-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
+import type { MtgCardData } from "@/components/mtg-card-grid";
 import { CardSearchDialog } from "@/components/card-search";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import type { SelectedCard } from "@/types/scryfall";
@@ -36,6 +39,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollectionCardsByContainer, useStorageContainer } from "@/hooks/use-collection-cards";
+import { useDbCollections } from "@/lib/db/db-context";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(app)/_authed/cards/$collectionId")({
@@ -55,6 +59,30 @@ function CollectionDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { collectionCardCollection } = useDbCollections();
+
+  const handleRemoveCard = useCallback(
+    (card: MtgCardData) => {
+      const tx = collectionCardCollection.delete(card.id);
+      tx.isPersisted.promise.then(
+        () => toast.success("Card removed from collection"),
+        (error: Error) => toast.error(error.message || "Failed to remove card"),
+      );
+    },
+    [collectionCardCollection],
+  );
+
+  const cardActions: CardDetailAction[] = useMemo(
+    () => [
+      {
+        icon: <X className="h-5 w-5" />,
+        label: "Remove from collection",
+        variant: "destructive" as const,
+        onClick: handleRemoveCard,
+      },
+    ],
+    [handleRemoveCard],
+  );
 
   const importMutation = useMutation({
     ...orpc.collections.importCards.mutationOptions(),
@@ -237,6 +265,7 @@ function CollectionDetailPage() {
             <VirtualizedMtgCardGrid
               view={viewMode}
               scrollElementRef={scrollContainerRef}
+              cardActions={cardActions}
               cards={cards.map((card) => ({
                 id: card.id,
                 scryfallCard: {

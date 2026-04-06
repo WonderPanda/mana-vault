@@ -22,7 +22,9 @@ import {
   deckPublisher,
   deckCardPublisher,
   toDeckReplicationDoc,
+  toDeckCardReplicationDoc,
   type DeckReplicationDoc,
+  type DeckCardReplicationDoc,
   type DeckStreamEvent,
   type DeckCardStreamEvent,
 } from "../publishers/deck-publisher";
@@ -972,6 +974,174 @@ export const decksRouter = {
 
   cardSync: {
     /**
+     * Push endpoint for deck card replication.
+     * Handles client→server writes (updates & deletes) with conflict resolution.
+     * Deletions are soft deletes (sets deletedAt).
+     */
+    push: protectedProcedure
+      .input(
+        z.object({
+          rows: z.array(
+            z.object({
+              newDocumentState: z.object({
+                id: z.string(),
+                deckId: z.string(),
+                oracleId: z.string(),
+                preferredScryfallId: z.string().nullable(),
+                quantity: z.number(),
+                board: z.string(),
+                isCommander: z.boolean(),
+                isCompanion: z.boolean(),
+                collectionCardId: z.string().nullable(),
+                isProxy: z.boolean(),
+                sortOrder: z.number(),
+                createdAt: z.number(),
+                updatedAt: z.number(),
+                _deleted: z.boolean(),
+              }),
+              assumedMasterState: z
+                .object({
+                  id: z.string(),
+                  deckId: z.string(),
+                  oracleId: z.string(),
+                  preferredScryfallId: z.string().nullable(),
+                  quantity: z.number(),
+                  board: z.string(),
+                  isCommander: z.boolean(),
+                  isCompanion: z.boolean(),
+                  collectionCardId: z.string().nullable(),
+                  isProxy: z.boolean(),
+                  sortOrder: z.number(),
+                  createdAt: z.number(),
+                  updatedAt: z.number(),
+                  _deleted: z.boolean(),
+                })
+                .nullable(),
+            }),
+          ),
+        }),
+      )
+      .handler(async ({ context, input }) => {
+        const userId = context.session.user.id;
+        const { rows } = input;
+        const conflicts: DeckCardReplicationDoc[] = [];
+        const changedDocs: DeckCardReplicationDoc[] = [];
+
+        for (const row of rows) {
+          const { newDocumentState, assumedMasterState } = row;
+
+          // Verify the deck belongs to the user
+          const [parentDeck] = await db
+            .select({ id: deck.id })
+            .from(deck)
+            .where(and(eq(deck.id, newDocumentState.deckId), eq(deck.userId, userId)))
+            .limit(1);
+
+          if (!parentDeck) continue;
+
+          // Look up current master state
+          const [currentRow] = await db
+            .select()
+            .from(deckCard)
+            .where(eq(deckCard.id, newDocumentState.id))
+            .limit(1);
+
+          if (newDocumentState._deleted) {
+            // Soft delete
+            if (currentRow) {
+              const masterUpdatedAt = currentRow.updatedAt.getTime();
+              const assumedUpdatedAt = assumedMasterState?.updatedAt;
+
+              if (assumedUpdatedAt === masterUpdatedAt) {
+                const now = new Date();
+                const [updated] = await db
+                  .update(deckCard)
+                  .set({ deletedAt: now })
+                  .where(eq(deckCard.id, newDocumentState.id))
+                  .returning();
+
+                if (updated) {
+                  changedDocs.push(toDeckCardReplicationDoc(updated, true));
+                }
+              } else {
+                conflicts.push(toDeckCardReplicationDoc(currentRow, currentRow.deletedAt !== null));
+              }
+            }
+            // If row doesn't exist, deletion already happened — no conflict
+          } else if (!currentRow && !assumedMasterState) {
+            // New document — insert
+            const now = new Date();
+            const [inserted] = await db
+              .insert(deckCard)
+              .values({
+                id: newDocumentState.id,
+                deckId: newDocumentState.deckId,
+                oracleId: newDocumentState.oracleId,
+                preferredScryfallId: newDocumentState.preferredScryfallId,
+                quantity: newDocumentState.quantity,
+                board: newDocumentState.board,
+                isCommander: newDocumentState.isCommander,
+                isCompanion: newDocumentState.isCompanion,
+                collectionCardId: newDocumentState.collectionCardId,
+                isProxy: newDocumentState.isProxy,
+                sortOrder: newDocumentState.sortOrder,
+                createdAt: now,
+                updatedAt: now,
+              })
+              .returning();
+
+            if (inserted) {
+              changedDocs.push(toDeckCardReplicationDoc(inserted, false));
+            }
+          } else if (currentRow) {
+            // Update existing document
+            const masterUpdatedAt = currentRow.updatedAt.getTime();
+            const assumedUpdatedAt = assumedMasterState?.updatedAt;
+
+            if (assumedUpdatedAt === masterUpdatedAt) {
+              const [updated] = await db
+                .update(deckCard)
+                .set({
+                  oracleId: newDocumentState.oracleId,
+                  preferredScryfallId: newDocumentState.preferredScryfallId,
+                  quantity: newDocumentState.quantity,
+                  board: newDocumentState.board,
+                  isCommander: newDocumentState.isCommander,
+                  isCompanion: newDocumentState.isCompanion,
+                  collectionCardId: newDocumentState.collectionCardId,
+                  isProxy: newDocumentState.isProxy,
+                  sortOrder: newDocumentState.sortOrder,
+                  deletedAt: null, // Un-delete if re-inserted
+                })
+                .where(eq(deckCard.id, newDocumentState.id))
+                .returning();
+
+              if (updated) {
+                changedDocs.push(toDeckCardReplicationDoc(updated, false));
+              }
+            } else {
+              conflicts.push(toDeckCardReplicationDoc(currentRow, currentRow.deletedAt !== null));
+            }
+          } else {
+            if (assumedMasterState) {
+              conflicts.push({ ...assumedMasterState, _deleted: true });
+            }
+          }
+        }
+
+        // Publish changed docs to SSE stream for other clients
+        if (changedDocs.length > 0) {
+          const lastDoc = changedDocs[changedDocs.length - 1]!;
+          deckCardPublisher.publish(userId, {
+            documents: changedDocs,
+            checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
+          });
+        }
+
+        return { conflicts };
+      }),
+
+    /**
      * Pull endpoint for deck card replication.
      * Returns deck cards for all decks owned by the user.
      */
@@ -986,7 +1156,7 @@ export const decksRouter = {
         const userId = context.session.user.id;
         const { checkpoint, batchSize } = input;
 
-        // Base select fields for deck cards
+        // Base select fields for deck cards (includes soft-deleted for replication)
         const selectFields = {
           id: deckCard.id,
           deckId: deckCard.deckId,
@@ -1001,6 +1171,7 @@ export const decksRouter = {
           sortOrder: deckCard.sortOrder,
           createdAt: deckCard.createdAt,
           updatedAt: deckCard.updatedAt,
+          deletedAt: deckCard.deletedAt,
         };
 
         let documents;
@@ -1052,7 +1223,7 @@ export const decksRouter = {
           sortOrder: doc.sortOrder,
           createdAt: doc.createdAt.getTime(),
           updatedAt: doc.updatedAt.getTime(),
-          _deleted: false, // TODO: implement soft deletes on server to sync deletions
+          _deleted: doc.deletedAt !== null,
         }));
 
         // Calculate new checkpoint

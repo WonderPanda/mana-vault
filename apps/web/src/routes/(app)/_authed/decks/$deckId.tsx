@@ -1,11 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, MoreHorizontal, Plus, Search, Swords, Trash2, Upload } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, MoreHorizontal, Plus, Search, Swords, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { CardDetailDialog } from "@/components/card-detail-dialog";
+import { CardDetailDialog, type CardDetailAction } from "@/components/card-detail-dialog";
+import type { MtgCardData } from "@/components/mtg-card-grid";
 import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { CardSearchDialog } from "@/components/card-search";
@@ -44,6 +45,7 @@ import {
   type CardCategory,
 } from "@/hooks/use-deck-cards";
 import { buildCommanderSearchPrefix } from "@/lib/commander-utils";
+import { useDbCollections } from "@/lib/db/db-context";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const deckDetailSearchSchema = z.object({
@@ -154,6 +156,31 @@ function DeckDetailPage() {
       addToCollection: options?.addToCollection ?? false,
     });
   };
+
+  const { deckCardCollection } = useDbCollections();
+
+  const handleRemoveCard = useCallback(
+    (card: MtgCardData) => {
+      const tx = deckCardCollection.delete(card.id);
+      tx.isPersisted.promise.then(
+        () => toast.success("Card removed from deck"),
+        (error: Error) => toast.error(error.message || "Failed to remove card"),
+      );
+    },
+    [deckCardCollection],
+  );
+
+  const cardActions: CardDetailAction[] = useMemo(
+    () => [
+      {
+        icon: <X className="h-5 w-5" />,
+        label: "Remove from deck",
+        variant: "destructive" as const,
+        onClick: handleRemoveCard,
+      },
+    ],
+    [handleRemoveCard],
+  );
 
   const handleCardClick = (card: { id: string }) => {
     if (!allCards) return;
@@ -386,6 +413,7 @@ function DeckDetailPage() {
             cards={allCards}
             selectedIndex={selectedCardIndex}
             onClose={() => setSelectedCardIndex(null)}
+            actions={cardActions}
           />
         )}
       </PageContent>

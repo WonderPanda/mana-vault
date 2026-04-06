@@ -6,7 +6,6 @@ import {
   Gift,
   Heart,
   ListChecks,
-  Minus,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -18,10 +17,11 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
+import type { CardDetailAction } from "@/components/card-detail-dialog";
 import { CommanderDisplay } from "@/components/commander-display";
 import { CommanderSearchDialog } from "@/components/commander-search-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
@@ -72,7 +72,6 @@ function ListDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isCommanderSearchOpen, setIsCommanderSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
-  const [isRemoveMode, setIsRemoveMode] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [editName, setEditName] = useState(list.name);
@@ -89,15 +88,6 @@ function ListDetailPage() {
       renameInputRef.current?.select();
     }
   }, [isRenaming]);
-
-  useEffect(() => {
-    if (!isRemoveMode) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsRemoveMode(false);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isRemoveMode]);
 
   const handleRename = () => {
     const trimmed = editName.trim();
@@ -166,6 +156,23 @@ function ListDetailPage() {
       toast.error(error.message || "Failed to remove card");
     },
   });
+
+  const cardActions: CardDetailAction[] = useMemo(
+    () => [
+      {
+        icon: <X className="h-5 w-5" />,
+        label: "Remove from list",
+        variant: "destructive" as const,
+        onClick: (card) => {
+          removeCardMutation.mutate({
+            listId,
+            virtualListCardId: card.id,
+          });
+        },
+      },
+    ],
+    [listId, removeCardMutation],
+  );
 
   const addCardsMutation = useMutation({
     ...orpc.lists.addCardsFromSearch.mutationOptions(),
@@ -359,10 +366,6 @@ function ListDetailPage() {
                 <Pencil className="mr-2 h-4 w-4" />
                 Rename
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={cards.length === 0} onClick={() => setIsRemoveMode(true)}>
-                <Minus className="mr-2 h-4 w-4" />
-                Remove Cards
-              </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={updateMutation.isPending}
                 onClick={() => handleTogglePublic(!list.isPublic)}
@@ -453,50 +456,22 @@ function ListDetailPage() {
           }
         />
 
-        {/* Remove mode action bar */}
-        {isRemoveMode && (
-          <div className="mb-4 flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-2">
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <X className="h-4 w-4" />
-              <span>Tap a card to remove it</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
-              <Button variant="outline" size="sm" onClick={() => setIsRemoveMode(false)}>
-                Done
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Cards section */}
-        {cards.length === 0 && !isRemoveMode ? (
+        {cards.length === 0 ? (
           <EmptyCardsState
             variant="list"
             onImportClick={() => setIsImportOpen(true)}
             onAddClick={() => setIsSearchOpen(true)}
           />
-        ) : cards.length === 0 && isRemoveMode ? null : (
+        ) : (
           <>
-            {!isRemoveMode && (
-              <div className="mb-4 flex justify-end">
-                <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
-              </div>
-            )}
+            <div className="mb-4 flex justify-end">
+              <MtgCardViewToggle view={viewMode} onViewChange={setViewMode} />
+            </div>
             <VirtualizedMtgCardGrid
               view={viewMode}
               scrollElementRef={scrollContainerRef}
-              removeMode={isRemoveMode}
-              onRemoveCard={
-                isRemoveMode
-                  ? (card) => {
-                      removeCardMutation.mutate({
-                        listId,
-                        virtualListCardId: card.id,
-                      });
-                    }
-                  : undefined
-              }
+              cardActions={cardActions}
               cards={cards
                 .map((card) => ({
                   id: card.id,

@@ -47,7 +47,7 @@ if (existsSync(seedPath)) {
   unlinkSync(seedPath);
 }
 
-const source = new Database(d1Path, { readonly: true });
+const source = new Database(d1Path);
 const seed = new Database(seedPath);
 
 // Create table from source schema

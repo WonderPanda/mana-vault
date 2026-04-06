@@ -149,10 +149,16 @@ export function setupReplicationsWithMultiplexedStream(
 
   const deckCardReplicationState = createReplication<DeckCardDoc>({
     collection: db.deck_cards,
-    identifier: "deck-card-pull-replication",
+    identifier: "deck-card-replication",
+    deletedField: "_deleted",
     pullFn: (checkpoint, batchSize) => client.decks.cardSync.pull({ checkpoint, batchSize }),
     batchSize: 100,
     stream$: streams.deckCard$,
+    pushFn: async (rows) => {
+      const response = await client.decks.cardSync.push({ rows });
+      return response.conflicts;
+    },
+    pushBatchSize: 10,
   });
 
   const storageContainerReplicationState = createReplication<StorageContainerDoc>({
@@ -166,11 +172,16 @@ export function setupReplicationsWithMultiplexedStream(
 
   const collectionCardReplicationState = createReplication<CollectionCardDoc>({
     collection: db.collection_cards,
-    identifier: "collection-card-pull-replication",
+    identifier: "collection-card-replication",
     pullFn: (checkpoint, batchSize) => client.collections.cardSync.pull({ checkpoint, batchSize }),
     batchSize: 100,
     deletedField: "_deleted",
     stream$: streams.collectionCard$,
+    pushFn: async (rows) => {
+      const response = await client.collections.cardSync.push({ rows });
+      return response.conflicts;
+    },
+    pushBatchSize: 10,
   });
 
   const collectionCardLocationReplicationState = createReplication<CollectionCardLocationDoc>({

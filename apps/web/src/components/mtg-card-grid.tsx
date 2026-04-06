@@ -6,7 +6,7 @@ import type { OwnershipStatus } from "@/hooks/use-deck-cards";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 
-import { CardDetailDialog } from "./card-detail-dialog";
+import { CardDetailDialog, type CardDetailAction } from "./card-detail-dialog";
 import { ManaCost } from "./mana-cost";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -86,6 +86,8 @@ interface VirtualizedMtgCardGridProps {
   onRemoveCard?: (card: MtgCardData) => void;
   /** When true, cards show prominent always-visible remove buttons */
   removeMode?: boolean;
+  /** Actions to show in the card detail dialog toolbar */
+  cardActions?: CardDetailAction[];
 }
 
 /**
@@ -100,6 +102,7 @@ export function VirtualizedMtgCardGrid({
   onCardClick,
   onRemoveCard,
   removeMode,
+  cardActions,
 }: VirtualizedMtgCardGridProps) {
   const columns = useGridColumns();
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
@@ -218,6 +221,7 @@ export function VirtualizedMtgCardGrid({
           cards={cards}
           selectedIndex={selectedCardIndex}
           onClose={() => setSelectedCardIndex(null)}
+          actions={cardActions}
         />
       )}
     </div>
