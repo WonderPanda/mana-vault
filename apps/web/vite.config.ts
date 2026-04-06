@@ -13,10 +13,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "mana-vault",
-        short_name: "mana-vault",
-        description: "mana-vault - PWA Application",
+        name: "Mana Vault",
+        short_name: "Mana Vault",
+        description: "Track and manage your Magic: The Gathering collection",
         theme_color: "#0c0c0c",
+        background_color: "#0c0c0c",
+        display: "standalone",
+        scope: "/",
+        start_url: "/",
       },
       pwaAssets: { disabled: false, config: true },
       workbox: {
