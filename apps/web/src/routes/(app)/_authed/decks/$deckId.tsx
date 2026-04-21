@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, MoreHorizontal, Plus, Search, Swords, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Plus, Swords, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -28,7 +28,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -64,7 +63,6 @@ function DeckDetailPage() {
   const activeBoard = (board as BoardType) ?? BOARD_TYPES.MAIN;
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
@@ -268,39 +266,9 @@ function DeckDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-            <PopoverTrigger
-              render={
-                <Button size="icon" className="rounded-full">
-                  <Plus className="h-5 w-5" />
-                </Button>
-              }
-            />
-            <PopoverContent align="end" className="w-48 p-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => {
-                  setIsAddMenuOpen(false);
-                  setIsSearchOpen(true);
-                }}
-              >
-                <Search className="mr-2 h-4 w-4" />
-                Search Cards
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => {
-                  setIsAddMenuOpen(false);
-                  setIsImportOpen(true);
-                }}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Import
-              </Button>
-            </PopoverContent>
-          </Popover>
+          <Button size="icon" className="rounded-full" onClick={() => setIsSearchOpen(true)}>
+            <Plus className="h-5 w-5" />
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -310,6 +278,10 @@ function DeckDetailPage() {
               }
             />
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import from CSV
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setIsDeleteOpen(true)}

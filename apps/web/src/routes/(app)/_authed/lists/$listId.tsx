@@ -9,7 +9,6 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  Search,
   Share2,
   ShoppingCart,
   Sparkles,
@@ -45,7 +44,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -68,7 +66,6 @@ function ListDetailPage() {
   const { data: cards } = useSuspenseQuery(orpc.lists.getCards.queryOptions({ input: { listId } }));
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isCommanderSearchOpen, setIsCommanderSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
@@ -315,39 +312,9 @@ function ListDetailPage() {
               )}
             </Button>
           )}
-          <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-            <PopoverTrigger
-              render={
-                <Button size="icon" className="rounded-full">
-                  <Plus className="h-5 w-5" />
-                </Button>
-              }
-            />
-            <PopoverContent align="end" className="w-48 p-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => {
-                  setIsAddMenuOpen(false);
-                  setIsSearchOpen(true);
-                }}
-              >
-                <Search className="mr-2 h-4 w-4" />
-                Search Cards
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => {
-                  setIsAddMenuOpen(false);
-                  setIsImportOpen(true);
-                }}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Import
-              </Button>
-            </PopoverContent>
-          </Popover>
+          <Button size="icon" className="rounded-full" onClick={() => setIsSearchOpen(true)}>
+            <Plus className="h-5 w-5" />
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -357,6 +324,10 @@ function ListDetailPage() {
               }
             />
             <DropdownMenuContent align="end" className="min-w-[160px]">
+              <DropdownMenuItem onClick={() => setIsImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import from CSV
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
                   setEditName(list.name);
