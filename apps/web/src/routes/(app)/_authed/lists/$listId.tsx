@@ -14,9 +14,8 @@ import {
   Sparkles,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CardImportDialog } from "@/components/card-import-dialog";
@@ -27,7 +26,8 @@ import type { CardImportData } from "@/components/card-import-dialog";
 import { CardSearchDialog } from "@/components/card-search";
 import { DeleteListDialog } from "@/components/delete-list-dialog";
 import { buildCommanderSearchPrefix } from "@/lib/commander-utils";
-import type { SelectedCard } from "@/types/scryfall";
+import type { MtgCardData } from "@/components/mtg-card-grid";
+import type { ScryfallCard, SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGridSkeleton,
@@ -157,7 +157,7 @@ function ListDetailPage() {
   const cardActions: CardDetailAction[] = useMemo(
     () => [
       {
-        icon: <X className="h-5 w-5" />,
+        icon: <Trash2 className="h-5 w-5" />,
         label: "Remove from list",
         variant: "destructive" as const,
         onClick: (card) => {
@@ -166,9 +166,38 @@ function ListDetailPage() {
             virtualListCardId: card.id,
           });
         },
+        confirmation: {
+          title: "Remove from list?",
+          confirmLabel: "Remove",
+        },
       },
     ],
     [listId, removeCardMutation],
+  );
+
+  const updateCardPrintingMutation = useMutation({
+    ...orpc.lists.updateCardPrinting.mutationOptions(),
+    onSuccess: () => {
+      toast.success("Printing changed");
+      queryClient.invalidateQueries({
+        queryKey: orpc.lists.getCards.queryOptions({ input: { listId } }).queryKey,
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to change printing");
+    },
+  });
+
+  const handleChangePrinting = useCallback(
+    (card: MtgCardData, printing: ScryfallCard) => {
+      if (printing.id === card.scryfallCard.id) return;
+      updateCardPrintingMutation.mutate({
+        listId,
+        virtualListCardId: card.id,
+        scryfallId: printing.id,
+      });
+    },
+    [listId, updateCardPrintingMutation],
   );
 
   const addCardsMutation = useMutation({
@@ -443,10 +472,13 @@ function ListDetailPage() {
               view={viewMode}
               scrollElementRef={scrollContainerRef}
               cardActions={cardActions}
+              onChangePrinting={handleChangePrinting}
               cards={cards
                 .map((card) => ({
                   id: card.id,
                   scryfallCard: {
+                    id: card.scryfallCard.id,
+                    oracleId: card.scryfallCard.oracleId,
                     name: card.scryfallCard.name,
                     setCode: card.scryfallCard.setCode,
                     setName: card.scryfallCard.setName,

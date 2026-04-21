@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, Box, MoreHorizontal, Plus, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Box, MoreHorizontal, Plus, Trash2, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,7 +10,7 @@ import type { CardImportData } from "@/components/card-import-dialog";
 import type { MtgCardData } from "@/components/mtg-card-grid";
 import { CardSearchDialog } from "@/components/card-search";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
-import type { SelectedCard } from "@/types/scryfall";
+import { getCardImageUri, type ScryfallCard, type SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGridSkeleton,
@@ -47,7 +47,7 @@ function CollectionDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<MtgCardViewMode>("grid");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { collectionCardCollection } = useDbCollections();
+  const { collectionCardCollection, scryfallCardCollection } = useDbCollections();
 
   const handleRemoveCard = useCallback(
     (card: MtgCardData) => {
@@ -60,13 +60,64 @@ function CollectionDetailPage() {
     [collectionCardCollection],
   );
 
+  const handleChangePrinting = useCallback(
+    (card: MtgCardData, printing: ScryfallCard) => {
+      if (printing.id === card.scryfallCard.id) return;
+
+      // Make sure the target printing exists in the local scryfall collection
+      // so live-query joins resolve immediately after the optimistic update.
+      const now = Date.now();
+      try {
+        scryfallCardCollection.insert({
+          id: printing.id,
+          oracleId: printing.oracle_id,
+          name: printing.name,
+          setCode: printing.set,
+          setName: printing.set_name,
+          collectorNumber: printing.collector_number,
+          rarity: printing.rarity,
+          manaCost: printing.mana_cost ?? null,
+          cmc: printing.cmc ?? null,
+          typeLine: printing.type_line ?? null,
+          oracleText: printing.oracle_text ?? null,
+          colors: printing.colors ? JSON.stringify(printing.colors) : null,
+          colorIdentity: printing.color_identity ? JSON.stringify(printing.color_identity) : null,
+          imageUri: getCardImageUri(printing) ?? null,
+          scryfallUri: printing.scryfall_uri,
+          priceUsd: null,
+          priceUsdFoil: null,
+          priceUsdEtched: null,
+          dataJson: null,
+          createdAt: now,
+          updatedAt: now,
+          _deleted: false,
+        });
+      } catch {
+        // Already present locally — fine.
+      }
+
+      const tx = collectionCardCollection.update(card.id, (draft) => {
+        draft.scryfallCardId = printing.id;
+      });
+      tx.isPersisted.promise.then(
+        () => toast.success("Printing changed"),
+        (error: Error) => toast.error(error.message || "Failed to change printing"),
+      );
+    },
+    [collectionCardCollection, scryfallCardCollection],
+  );
+
   const cardActions: CardDetailAction[] = useMemo(
     () => [
       {
-        icon: <X className="h-5 w-5" />,
+        icon: <Trash2 className="h-5 w-5" />,
         label: "Remove from collection",
         variant: "destructive" as const,
         onClick: handleRemoveCard,
+        confirmation: {
+          title: "Remove from collection?",
+          confirmLabel: "Remove",
+        },
       },
     ],
     [handleRemoveCard],
@@ -228,9 +279,12 @@ function CollectionDetailPage() {
               view={viewMode}
               scrollElementRef={scrollContainerRef}
               cardActions={cardActions}
+              onChangePrinting={handleChangePrinting}
               cards={cards.map((card) => ({
                 id: card.id,
                 scryfallCard: {
+                  id: card.scryfallCard.id,
+                  oracleId: card.scryfallCard.oracleId,
                   name: card.scryfallCard.name,
                   setCode: card.scryfallCard.setCode,
                   setName: card.scryfallCard.setName,

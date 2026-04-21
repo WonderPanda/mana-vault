@@ -806,9 +806,23 @@ export const collectionsRouter = {
             const assumedUpdatedAt = assumedMasterState?.updatedAt;
 
             if (assumedUpdatedAt === masterUpdatedAt) {
+              // If the printing changed, make sure the target scryfall card
+              // exists on the server — clients may pick printings that have
+              // never been referenced before (via Scryfall API).
+              if (newDocumentState.scryfallCardId !== currentRow.scryfallCardId) {
+                const ensured = await ensureScryfallCard(newDocumentState.scryfallCardId);
+                if (!ensured) {
+                  conflicts.push(
+                    toCollectionCardReplicationDoc(currentRow, currentRow.deletedAt !== null),
+                  );
+                  continue;
+                }
+              }
+
               const [updated] = await db
                 .update(collectionCard)
                 .set({
+                  scryfallCardId: newDocumentState.scryfallCardId,
                   condition: newDocumentState.condition,
                   isFoil: newDocumentState.isFoil,
                   language: newDocumentState.language,
@@ -821,6 +835,14 @@ export const collectionsRouter = {
 
               if (updated) {
                 changedDocs.push(toCollectionCardReplicationDoc(updated, false));
+
+                // Touch scryfall card to trigger client-side replication sync
+                if (updated.scryfallCardId !== currentRow.scryfallCardId) {
+                  await db
+                    .update(scryfallCard)
+                    .set({ updatedAt: new Date() })
+                    .where(eq(scryfallCard.id, updated.scryfallCardId));
+                }
               }
             } else {
               conflicts.push(

@@ -1114,6 +1114,22 @@ export const decksRouter = {
             const assumedUpdatedAt = assumedMasterState?.updatedAt;
 
             if (assumedUpdatedAt === masterUpdatedAt) {
+              // If the preferred printing changed, make sure the target
+              // scryfall card exists on the server — clients may pick
+              // printings we've never referenced before.
+              if (
+                newDocumentState.preferredScryfallId &&
+                newDocumentState.preferredScryfallId !== currentRow.preferredScryfallId
+              ) {
+                const ensured = await ensureScryfallCard(newDocumentState.preferredScryfallId);
+                if (!ensured) {
+                  conflicts.push(
+                    toDeckCardReplicationDoc(currentRow, currentRow.deletedAt !== null),
+                  );
+                  continue;
+                }
+              }
+
               const [updated] = await db
                 .update(deckCard)
                 .set({
@@ -1133,6 +1149,17 @@ export const decksRouter = {
 
               if (updated) {
                 changedDocs.push(toDeckCardReplicationDoc(updated, false));
+
+                // Touch scryfall card to trigger client-side replication sync
+                if (
+                  updated.preferredScryfallId &&
+                  updated.preferredScryfallId !== currentRow.preferredScryfallId
+                ) {
+                  await db
+                    .update(scryfallCard)
+                    .set({ updatedAt: new Date() })
+                    .where(eq(scryfallCard.id, updated.preferredScryfallId));
+                }
               }
             } else {
               conflicts.push(toDeckCardReplicationDoc(currentRow, currentRow.deletedAt !== null));

@@ -6,6 +6,8 @@ import type { OwnershipStatus } from "@/hooks/use-deck-cards";
 import { useGridColumns } from "@/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 
+import type { ScryfallCard } from "@/types/scryfall";
+
 import { CardDetailDialog, type CardDetailAction } from "./card-detail-dialog";
 import { ManaCost } from "./mana-cost";
 import { Button } from "./ui/button";
@@ -18,6 +20,8 @@ export type MtgCardViewMode = "grid" | "list";
 export interface MtgCardData {
   id: string;
   scryfallCard: {
+    id: string;
+    oracleId: string;
     name: string;
     setCode: string;
     setName: string;
@@ -88,6 +92,8 @@ interface VirtualizedMtgCardGridProps {
   removeMode?: boolean;
   /** Actions to show in the card detail dialog toolbar */
   cardActions?: CardDetailAction[];
+  /** When provided, detail dialog shows a "Change printing" action */
+  onChangePrinting?: (card: MtgCardData, printing: ScryfallCard) => void;
 }
 
 /**
@@ -103,6 +109,7 @@ export function VirtualizedMtgCardGrid({
   onRemoveCard,
   removeMode,
   cardActions,
+  onChangePrinting,
 }: VirtualizedMtgCardGridProps) {
   const columns = useGridColumns();
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
@@ -222,6 +229,7 @@ export function VirtualizedMtgCardGrid({
           selectedIndex={selectedCardIndex}
           onClose={() => setSelectedCardIndex(null)}
           actions={cardActions}
+          onChangePrinting={onChangePrinting}
         />
       )}
     </div>

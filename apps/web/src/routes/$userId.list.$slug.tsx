@@ -126,6 +126,8 @@ function PublicListPage() {
                 .map((card) => ({
                   id: card.id,
                   scryfallCard: {
+                    id: card.scryfallCard.id,
+                    oracleId: card.scryfallCard.oracleId,
                     name: card.scryfallCard.name,
                     setCode: card.scryfallCard.setCode,
                     setName: card.scryfallCard.setName,

@@ -106,15 +106,19 @@ export function CardSearchContent({
     });
   }, []);
 
-  const handleSelectPrinting = useCallback((originalCardId: string, newCard: ScryfallCard) => {
+  const handleSelectPrinting = useCallback((newCard: ScryfallCard) => {
     setSelectedCards((prev) => {
       const next = new Map(prev);
-      const existing = next.get(originalCardId);
-      if (existing) {
-        // Remove old card, add new one with same quantity
-        next.delete(originalCardId);
-        next.set(newCard.id, { card: newCard, quantity: existing.quantity });
+      // Remove any existing selection for this oracle (could be a different printing)
+      // so the card ends up selected at exactly the chosen printing.
+      let quantity = 1;
+      for (const [key, sc] of next) {
+        if (sc.card.oracle_id === newCard.oracle_id) {
+          quantity = sc.quantity;
+          next.delete(key);
+        }
       }
+      next.set(newCard.id, { card: newCard, quantity });
       return next;
     });
   }, []);
@@ -193,37 +197,22 @@ export function CardSearchContent({
         {data && data.data.length > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {data.data.map((card) => {
-              const selection = selectedCards.get(card.id);
-              // Check if we have a different printing of this card selected
-              const hasOtherPrintingSelected = Array.from(selectedCards.values()).some(
-                (sc) => sc.card.oracle_id === card.oracle_id && sc.card.id !== card.id,
+              // Match selection by oracle_id so a chosen non-default printing
+              // drives the displayed card, checkbox, and panel highlight.
+              const selection = Array.from(selectedCards.values()).find(
+                (sc) => sc.card.oracle_id === card.oracle_id,
               );
+              const displayedCard = selection?.card ?? card;
 
               return (
                 <CardSearchResult
                   key={card.id}
-                  card={selection?.card ?? card}
-                  isSelected={!!selection || hasOtherPrintingSelected}
+                  card={displayedCard}
+                  isSelected={!!selection}
                   quantity={selection?.quantity ?? 1}
-                  onToggleSelect={() => {
-                    if (hasOtherPrintingSelected && !selection) {
-                      // If another printing is selected, clicking this one should select this printing instead
-                      const otherSelection = Array.from(selectedCards.values()).find(
-                        (sc) => sc.card.oracle_id === card.oracle_id,
-                      );
-                      if (otherSelection) {
-                        handleSelectPrinting(otherSelection.card.id, card);
-                      }
-                    } else {
-                      handleToggleSelect(selection?.card ?? card);
-                    }
-                  }}
-                  onQuantityChange={(qty) =>
-                    handleQuantityChange(selection?.card.id ?? card.id, qty)
-                  }
-                  onSelectPrinting={(newCard) =>
-                    handleSelectPrinting(selection?.card.id ?? card.id, newCard)
-                  }
+                  onToggleSelect={() => handleToggleSelect(displayedCard)}
+                  onQuantityChange={(qty) => handleQuantityChange(displayedCard.id, qty)}
+                  onSelectPrinting={handleSelectPrinting}
                 />
               );
             })}

@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, MoreHorizontal, Plus, Swords, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Plus, Swords, Trash2, Upload } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -11,7 +11,7 @@ import { CardImportDialog } from "@/components/card-import-dialog";
 import type { CardImportData } from "@/components/card-import-dialog";
 import { CardSearchDialog } from "@/components/card-search";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
-import { getCardImageUri, type SelectedCard } from "@/types/scryfall";
+import { getCardImageUri, type ScryfallCard, type SelectedCard } from "@/types/scryfall";
 import { EmptyCardsState } from "@/components/empty-cards-state";
 import {
   MtgCardGrid,
@@ -219,13 +219,64 @@ function DeckDetailPage() {
     [deckCardCollection],
   );
 
+  const handleChangePrinting = useCallback(
+    (card: MtgCardData, printing: ScryfallCard) => {
+      if (printing.id === card.scryfallCard.id) return;
+
+      // Seed the local scryfall collection so live queries resolve the new
+      // printing immediately after the optimistic update.
+      const now = Date.now();
+      try {
+        scryfallCardCollection.insert({
+          id: printing.id,
+          oracleId: printing.oracle_id,
+          name: printing.name,
+          setCode: printing.set,
+          setName: printing.set_name,
+          collectorNumber: printing.collector_number,
+          rarity: printing.rarity,
+          manaCost: printing.mana_cost ?? null,
+          cmc: printing.cmc ?? null,
+          typeLine: printing.type_line ?? null,
+          oracleText: printing.oracle_text ?? null,
+          colors: printing.colors ? JSON.stringify(printing.colors) : null,
+          colorIdentity: printing.color_identity ? JSON.stringify(printing.color_identity) : null,
+          imageUri: getCardImageUri(printing) ?? null,
+          scryfallUri: printing.scryfall_uri,
+          priceUsd: null,
+          priceUsdFoil: null,
+          priceUsdEtched: null,
+          dataJson: null,
+          createdAt: now,
+          updatedAt: now,
+          _deleted: false,
+        });
+      } catch {
+        // Already present locally — fine.
+      }
+
+      const tx = deckCardCollection.update(card.id, (draft) => {
+        draft.preferredScryfallId = printing.id;
+      });
+      tx.isPersisted.promise.then(
+        () => toast.success("Printing changed"),
+        (error: Error) => toast.error(error.message || "Failed to change printing"),
+      );
+    },
+    [deckCardCollection, scryfallCardCollection],
+  );
+
   const cardActions: CardDetailAction[] = useMemo(
     () => [
       {
-        icon: <X className="h-5 w-5" />,
+        icon: <Trash2 className="h-5 w-5" />,
         label: "Remove from deck",
         variant: "destructive" as const,
         onClick: handleRemoveCard,
+        confirmation: {
+          title: "Remove from deck?",
+          confirmLabel: "Remove",
+        },
       },
     ],
     [handleRemoveCard],
@@ -437,6 +488,7 @@ function DeckDetailPage() {
             selectedIndex={selectedCardIndex}
             onClose={() => setSelectedCardIndex(null)}
             actions={cardActions}
+            onChangePrinting={handleChangePrinting}
           />
         )}
       </PageContent>

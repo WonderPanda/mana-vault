@@ -445,6 +445,7 @@ export const listsRouter = {
           // Scryfall data from direct reference
           scryfallCard: {
             id: scryfallCard.id,
+            oracleId: scryfallCard.oracleId,
             name: scryfallCard.name,
             setCode: scryfallCard.setCode,
             setName: scryfallCard.setName,
@@ -478,6 +479,7 @@ export const listsRouter = {
         isInCollection: card.collectionCardId != null,
         scryfallCard: {
           id: card.scryfallCard.id,
+          oracleId: card.scryfallCard.oracleId,
           name: card.scryfallCard.name,
           setCode: card.scryfallCard.setCode,
           setName: card.scryfallCard.setName,
@@ -554,6 +556,53 @@ export const listsRouter = {
         .returning({ id: virtualListCard.id });
 
       if (!deleted) {
+        throw new ORPCError("NOT_FOUND", { message: "Card not found in list" });
+      }
+
+      return { success: true };
+    }),
+
+  /**
+   * Change the printing (scryfall card) referenced by a list entry.
+   * Fetches the target printing from Scryfall if we don't have it yet.
+   */
+  updateCardPrinting: protectedProcedure
+    .input(
+      z.object({
+        listId: z.string(),
+        virtualListCardId: z.string(),
+        scryfallId: z.string(),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const userId = context.session.user.id;
+
+      const [list] = await db
+        .select({ id: virtualList.id })
+        .from(virtualList)
+        .where(and(eq(virtualList.id, input.listId), eq(virtualList.userId, userId)));
+
+      if (!list) {
+        throw new ORPCError("NOT_FOUND", { message: "List not found" });
+      }
+
+      const card = await ensureScryfallCard(input.scryfallId);
+      if (!card) {
+        throw new ORPCError("NOT_FOUND", { message: "Printing not found on Scryfall" });
+      }
+
+      const [updated] = await db
+        .update(virtualListCard)
+        .set({ scryfallCardId: card.id })
+        .where(
+          and(
+            eq(virtualListCard.id, input.virtualListCardId),
+            eq(virtualListCard.virtualListId, input.listId),
+          ),
+        )
+        .returning({ id: virtualListCard.id });
+
+      if (!updated) {
         throw new ORPCError("NOT_FOUND", { message: "Card not found in list" });
       }
 
@@ -739,6 +788,7 @@ export const listsRouter = {
           // Scryfall data from direct reference
           scryfallCard: {
             id: scryfallCard.id,
+            oracleId: scryfallCard.oracleId,
             name: scryfallCard.name,
             setCode: scryfallCard.setCode,
             setName: scryfallCard.setName,
@@ -771,6 +821,7 @@ export const listsRouter = {
         createdAt: card.createdAt,
         scryfallCard: {
           id: card.scryfallCard.id,
+          oracleId: card.scryfallCard.oracleId,
           name: card.scryfallCard.name,
           setCode: card.scryfallCard.setCode,
           setName: card.scryfallCard.setName,

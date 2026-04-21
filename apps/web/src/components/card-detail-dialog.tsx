@@ -1,14 +1,28 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { ScryfallCard } from "@/types/scryfall";
+
+import { PrintingsPanel } from "./card-search/printings-panel";
 import type { MtgCardData } from "./mtg-card-grid";
+import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
+import { Popover, PopoverContent, PopoverDescription, PopoverTrigger } from "./ui/popover";
 
 export interface CardDetailAction {
   icon: React.ReactNode;
   label: string;
   onClick: (card: MtgCardData) => void;
   variant?: "default" | "destructive";
+  /**
+   * When set, clicking the action opens a confirmation popover instead of
+   * invoking onClick immediately. onClick fires only if the user confirms.
+   */
+  confirmation?: {
+    title?: string;
+    description?: string;
+    confirmLabel?: string;
+  };
 }
 
 interface CardDetailDialogProps {
@@ -16,6 +30,12 @@ interface CardDetailDialogProps {
   selectedIndex: number | null;
   onClose: () => void;
   actions?: CardDetailAction[];
+  /**
+   * When provided, adds a "Change printing" toolbar icon that expands an
+   * inline printings picker. Invoked with the card and the newly chosen
+   * Scryfall printing when the user picks one.
+   */
+  onChangePrinting?: (card: MtgCardData, printing: ScryfallCard) => void;
 }
 
 export function CardDetailDialog({
@@ -23,8 +43,10 @@ export function CardDetailDialog({
   selectedIndex,
   onClose,
   actions,
+  onChangePrinting,
 }: CardDetailDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(selectedIndex ?? 0);
+  const [isChangingPrinting, setIsChangingPrinting] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -34,6 +56,12 @@ export function CardDetailDialog({
       setCurrentIndex(selectedIndex);
     }
   }, [selectedIndex]);
+
+  // Collapse the printings picker whenever the focused card changes
+  // (navigation) or the dialog closes.
+  useEffect(() => {
+    setIsChangingPrinting(false);
+  }, [currentIndex, selectedIndex]);
 
   // Clamp index when cards array shrinks (e.g., after card removal)
   useEffect(() => {
@@ -223,28 +251,105 @@ export function CardDetailDialog({
           </div>
 
           {/* Action toolbar */}
-          {actions && actions.length > 0 && (
+          {((actions && actions.length > 0) || onChangePrinting) && (
             <div className="mt-2 flex items-center justify-center gap-1 rounded-lg bg-background/90 px-3 py-2 backdrop-blur-sm">
-              {actions.map((action) => (
+              {onChangePrinting && (
                 <button
-                  key={action.label}
                   type="button"
-                  onClick={() => action.onClick(card)}
+                  onClick={() => setIsChangingPrinting((v) => !v)}
                   className={`rounded-lg p-2.5 transition-colors ${
-                    action.variant === "destructive"
-                      ? "text-destructive hover:bg-destructive/10"
+                    isChangingPrinting
+                      ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
-                  aria-label={action.label}
-                  title={action.label}
+                  aria-label="Change printing"
+                  aria-pressed={isChangingPrinting}
+                  title="Change printing"
                 >
-                  {action.icon}
+                  <Images className="h-5 w-5" />
                 </button>
+              )}
+              {actions?.map((action) => (
+                <CardDetailActionButton key={action.label} action={action} card={card} />
               ))}
             </div>
+          )}
+
+          {onChangePrinting && isChangingPrinting && (
+            <PrintingsPanel
+              oracleId={scryfallCard.oracleId}
+              selectedId={scryfallCard.id}
+              onSelectPrinting={(printing) => {
+                onChangePrinting(card, printing);
+                setIsChangingPrinting(false);
+              }}
+            />
           )}
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface CardDetailActionButtonProps {
+  action: CardDetailAction;
+  card: MtgCardData;
+}
+
+function CardDetailActionButton({ action, card }: CardDetailActionButtonProps) {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  const buttonClass = `rounded-lg p-2.5 transition-colors ${
+    action.variant === "destructive"
+      ? "text-destructive hover:bg-destructive/10"
+      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+  }`;
+
+  if (!action.confirmation) {
+    return (
+      <button
+        type="button"
+        onClick={() => action.onClick(card)}
+        className={buttonClass}
+        aria-label={action.label}
+        title={action.label}
+      >
+        {action.icon}
+      </button>
+    );
+  }
+
+  const { title, description, confirmLabel } = action.confirmation;
+
+  return (
+    <Popover open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+      <PopoverTrigger
+        type="button"
+        className={buttonClass}
+        aria-label={action.label}
+        title={action.label}
+      >
+        {action.icon}
+      </PopoverTrigger>
+      <PopoverContent className="w-60" align="center">
+        <p className="font-medium text-sm">{title ?? `${action.label}?`}</p>
+        {description && <PopoverDescription>{description}</PopoverDescription>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setIsConfirmOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant={action.variant === "destructive" ? "destructive" : "default"}
+            size="sm"
+            onClick={() => {
+              setIsConfirmOpen(false);
+              action.onClick(card);
+            }}
+          >
+            {confirmLabel ?? action.label}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
