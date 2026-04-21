@@ -24,27 +24,30 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
       password: "",
     },
     onSubmit: async ({ value }) => {
+      let didError = false;
       await authClient.signIn.email(
         {
           email: value.email,
           password: value.password,
         },
         {
-          onSuccess: async () => {
-            await queryClient.removeQueries({ queryKey: ["session"] });
-
-            setTimeout(() => {
-              navigate({
-                to: "/cards",
-              });
-            }, 50);
-            toast.success("Sign in successful");
-          },
           onError: (error) => {
+            didError = true;
             toast.error(error.error.message || error.error.statusText);
           },
         },
       );
+
+      if (didError) return;
+
+      // Prime the session cache with the post-login session so that
+      // _authed's beforeLoad ensureQueryData is a cache hit — avoids racing
+      // a refetch against cookie/auth-client state during route transition.
+      const session = await authClient.getSession();
+      queryClient.setQueryData(["session"], session);
+
+      toast.success("Sign in successful");
+      await navigate({ to: "/cards" });
     },
     validators: {
       onSubmit: z.object({
