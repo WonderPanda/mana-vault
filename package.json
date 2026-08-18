@@ -21,6 +21,7 @@
       "libsql": "0.5.22",
       "@orpc/tanstack-query": "^1.12.2",
       "@orpc/client": "^1.12.2",
+      "@orpc/experimental-publisher-durable-object": "1.13.13",
       "@tanstack/query-core": "^5.96.2",
       "@tanstack/react-query": "^5.96.2",
       "@polar-sh/better-auth": "^1.6.4",

@@ -12,6 +12,7 @@
     "@mana-vault/auth": "workspace:*",
     "@mana-vault/db": "workspace:*",
     "@mana-vault/env": "workspace:*",
+    "@orpc/experimental-publisher-durable-object": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",

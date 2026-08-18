@@ -13,7 +13,7 @@ import type {
   TagDoc,
   ManaVaultDatabase,
 } from "./db";
-import type { AppRouterClient } from "@mana-vault/api/routers/index";
+import type { WebAppRouterClient } from "@/utils/orpc";
 import { createDemultiplexedStreams } from "./multiplexed-replication";
 
 /**
@@ -129,7 +129,7 @@ export interface MultiplexedReplicationStates {
  */
 export function setupReplicationsWithMultiplexedStream(
   db: ManaVaultDatabase,
-  client: AppRouterClient,
+  client: WebAppRouterClient,
 ): MultiplexedReplicationStates {
   const streams = createDemultiplexedStreams(client);
 

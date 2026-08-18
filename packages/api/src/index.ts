@@ -12,6 +12,7 @@ const requireAuth = o.middleware(async ({ context, next }) => {
   }
   return next({
     context: {
+      ...context,
       session: context.session,
     },
   });
@@ -30,6 +31,7 @@ const requireAdmin = o.middleware(async ({ context, next }) => {
   }
   return next({
     context: {
+      ...context,
       session: context.session,
     },
   });

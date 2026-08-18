@@ -1,5 +1,3 @@
-import { EventPublisher } from "@orpc/server";
-
 import type {
   DeckReplicationDoc,
   DeckCardReplicationDoc,
@@ -18,8 +16,6 @@ export interface DeckStreamEvent {
   documents: DeckReplicationDoc[];
   checkpoint: ReplicationCheckpoint | null;
 }
-
-export const deckPublisher = new EventPublisher<Record<string, DeckStreamEvent>>();
 
 export function toDeckReplicationDoc(
   doc: {
@@ -50,8 +46,6 @@ export type DeckCardStreamEvent =
       checkpoint: ReplicationCheckpoint | null;
     }
   | "RESYNC";
-
-export const deckCardPublisher = new EventPublisher<Record<string, DeckCardStreamEvent>>();
 
 export function toDeckCardReplicationDoc(
   doc: {

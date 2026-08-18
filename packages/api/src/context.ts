@@ -4,12 +4,14 @@ import { auth } from "@mana-vault/auth";
 import { env } from "@mana-vault/env/server";
 
 import type { ScryfallImportMessage } from "./types/queue-messages";
+import type { SyncEventBus } from "./publishers/sync-event-bus";
 
 export type CreateContextOptions = {
   context: HonoContext;
+  syncEvents: SyncEventBus;
 };
 
-export async function createContext({ context }: CreateContextOptions) {
+export async function createContext({ context, syncEvents }: CreateContextOptions) {
   const session = await auth.api.getSession({
     headers: context.req.raw.headers,
   });
@@ -20,6 +22,7 @@ export async function createContext({ context }: CreateContextOptions) {
   return {
     session,
     scryfallImportQueue,
+    syncEvents,
   };
 }
 

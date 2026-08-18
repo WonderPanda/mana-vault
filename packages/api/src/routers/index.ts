@@ -1,3 +1,4 @@
+import type { ClientContext } from "@orpc/client";
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
@@ -28,4 +29,5 @@ export const appRouter = {
   tags: tagsRouter,
 };
 export type AppRouter = typeof appRouter;
-export type AppRouterClient = RouterClient<typeof appRouter>;
+export type AppRouterClient<TClientContext extends ClientContext = Record<never, never>> =
+  RouterClient<typeof appRouter, TClientContext>;

@@ -14,9 +14,6 @@ import { protectedProcedure } from "../index";
 import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
 import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import {
-  collectionCardPublisher,
-  collectionCardLocationPublisher,
-  storageContainerPublisher,
   toStorageContainerReplicationDoc,
   toCollectionCardReplicationDoc,
   type CollectionCardReplicationDoc,
@@ -24,6 +21,7 @@ import {
   type CollectionCardLocationStreamEvent,
   type StorageContainerStreamEvent,
 } from "../publishers/collection-publisher";
+import { subscribeToSyncEvent } from "../publishers/sync-event-bus";
 
 /**
  * Checkpoint schema for RxDB replication.
@@ -113,7 +111,7 @@ export const collectionsRouter = {
       // Publish event to notify connected clients
       if (collection) {
         const replicationDoc = toStorageContainerReplicationDoc(collection);
-        storageContainerPublisher.publish(userId, {
+        await context.syncEvents.publish(userId, "storageContainer", {
           documents: [replicationDoc],
           checkpoint: {
             id: replicationDoc.id,
@@ -260,8 +258,8 @@ export const collectionsRouter = {
       }
 
       if (addedCount > 0) {
-        collectionCardPublisher.publish(userId, "RESYNC");
-        collectionCardLocationPublisher.publish(userId, "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCard", "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCardLocation", "RESYNC");
       }
 
       return {
@@ -459,10 +457,10 @@ export const collectionsRouter = {
 
       // Trigger RESYNC for live replication subscribers after bulk import
       if (importedCount > 0) {
-        collectionCardPublisher.publish(userId, "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCard", "RESYNC");
         // Also trigger location resync since new cards may have been assigned to a container
         if (input.collectionId) {
-          collectionCardLocationPublisher.publish(userId, "RESYNC");
+          await context.syncEvents.publish(userId, "collectionCardLocation", "RESYNC");
         }
       }
 
@@ -556,7 +554,7 @@ export const collectionsRouter = {
         // Publish in batches if needed (using the last location for checkpoint)
         const lastLoc = locationDocs[locationDocs.length - 1];
         if (lastLoc) {
-          collectionCardLocationPublisher.publish(userId, {
+          await context.syncEvents.publish(userId, "collectionCardLocation", {
             documents: locationDocs,
             checkpoint: {
               id: lastLoc.id,
@@ -567,7 +565,7 @@ export const collectionsRouter = {
       }
 
       // Publish deletion event for the storage container
-      storageContainerPublisher.publish(userId, {
+      await context.syncEvents.publish(userId, "storageContainer", {
         documents: [
           {
             id: input.id,
@@ -697,11 +695,15 @@ export const collectionsRouter = {
      */
     stream: protectedProcedure
       .output(eventIterator(z.custom<StorageContainerStreamEvent>()))
-      .handler(async function* ({ context, signal }) {
+      .handler(async function* ({ context, signal, lastEventId }) {
         const userId = context.session.user.id;
 
-        // Subscribe to storage container events for this user
-        for await (const event of storageContainerPublisher.subscribe(userId, { signal })) {
+        for await (const event of subscribeToSyncEvent(
+          context.syncEvents,
+          userId,
+          "storageContainer",
+          { signal, lastEventId },
+        )) {
           yield event;
         }
       }),
@@ -859,7 +861,7 @@ export const collectionsRouter = {
         // Publish changed docs to SSE stream for other clients
         if (changedDocs.length > 0) {
           const lastDoc = changedDocs[changedDocs.length - 1]!;
-          collectionCardPublisher.publish(userId, {
+          await context.syncEvents.publish(userId, "collectionCard", {
             documents: changedDocs,
             checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
           });
@@ -974,11 +976,15 @@ export const collectionsRouter = {
      */
     stream: protectedProcedure
       .output(eventIterator(z.custom<CollectionCardStreamEvent>()))
-      .handler(async function* ({ context, signal }) {
+      .handler(async function* ({ context, signal, lastEventId }) {
         const userId = context.session.user.id;
 
-        // Subscribe to collection card events for this user
-        for await (const event of collectionCardPublisher.subscribe(userId, { signal })) {
+        for await (const event of subscribeToSyncEvent(
+          context.syncEvents,
+          userId,
+          "collectionCard",
+          { signal, lastEventId },
+        )) {
           yield event;
         }
       }),
@@ -1092,11 +1098,15 @@ export const collectionsRouter = {
      */
     stream: protectedProcedure
       .output(eventIterator(z.custom<CollectionCardLocationStreamEvent>()))
-      .handler(async function* ({ context, signal }) {
+      .handler(async function* ({ context, signal, lastEventId }) {
         const userId = context.session.user.id;
 
-        // Subscribe to collection card location events for this user
-        for await (const event of collectionCardLocationPublisher.subscribe(userId, { signal })) {
+        for await (const event of subscribeToSyncEvent(
+          context.syncEvents,
+          userId,
+          "collectionCardLocation",
+          { signal, lastEventId },
+        )) {
           yield event;
         }
       }),
