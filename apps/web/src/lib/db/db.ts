@@ -14,7 +14,8 @@ import type {
 } from "@mana-vault/api/publishers/replication-types";
 
 import { setupReplicationsWithMultiplexedStream } from "./replication";
-import { client } from "@/utils/orpc";
+import { createListQueryInvalidator } from "./list-query-invalidation";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 // Add migration plugin for schema version changes
 addRxPlugin(RxDBMigrationSchemaPlugin);
@@ -360,7 +361,14 @@ async function initializeDb() {
     collectionCardLocationReplicationState,
     scryfallCardReplicationState,
     tagReplicationState,
-  } = setupReplicationsWithMultiplexedStream(database, client);
+  } = setupReplicationsWithMultiplexedStream(database, client, {
+    invalidateListQueries: createListQueryInvalidator(queryClient, {
+      all: orpc.lists.key({ type: "query" }),
+      summaries: orpc.lists.list.queryKey(),
+      detail: (listId) => orpc.lists.get.queryKey({ input: { id: listId } }),
+      cards: (listId) => orpc.lists.getCards.queryKey({ input: { listId } }),
+    }),
+  });
 
   // When deck cards or collection cards change, trigger a scryfall card sync to ensure
   // we have the card data for joins. This is needed because scryfall card replication

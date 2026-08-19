@@ -8,6 +8,7 @@ import z from "zod";
 import { protectedProcedure, publicProcedure } from "../index";
 import { mapCondition, parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
+import { publishVirtualListChange } from "../publishers/virtual-list-publisher";
 import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
 
@@ -199,6 +200,12 @@ export const listsRouter = {
         })
         .returning();
 
+      if (!list) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to create list" });
+      }
+
+      await publishVirtualListChange(context.syncEvents, userId, list.id, "created");
+
       return list;
     }),
 
@@ -267,6 +274,12 @@ export const listsRouter = {
         })
         .where(eq(virtualList.id, input.id))
         .returning();
+
+      if (!updatedList) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to update list" });
+      }
+
+      await publishVirtualListChange(context.syncEvents, userId, input.id, "updated");
 
       return updatedList;
     }),
@@ -396,6 +409,10 @@ export const listsRouter = {
         }
       }
 
+      if (importedCount > 0) {
+        await publishVirtualListChange(context.syncEvents, userId, input.listId, "cardsChanged");
+      }
+
       return {
         listId: input.listId,
         format: input.format,
@@ -516,6 +533,7 @@ export const listsRouter = {
 
       // Delete the list (cascades to virtualListCard entries via foreign key)
       await db.delete(virtualList).where(eq(virtualList.id, input.id));
+      await publishVirtualListChange(context.syncEvents, userId, input.id, "deleted");
 
       return { success: true, deletedListName: list.name };
     }),
@@ -558,6 +576,8 @@ export const listsRouter = {
       if (!deleted) {
         throw new ORPCError("NOT_FOUND", { message: "Card not found in list" });
       }
+
+      await publishVirtualListChange(context.syncEvents, userId, input.listId, "cardsChanged");
 
       return { success: true };
     }),
@@ -605,6 +625,8 @@ export const listsRouter = {
       if (!updated) {
         throw new ORPCError("NOT_FOUND", { message: "Card not found in list" });
       }
+
+      await publishVirtualListChange(context.syncEvents, userId, input.listId, "cardsChanged");
 
       return { success: true };
     }),
@@ -687,6 +709,10 @@ export const listsRouter = {
             throw error;
           }
         }
+      }
+
+      if (addedCount > 0) {
+        await publishVirtualListChange(context.syncEvents, userId, input.listId, "cardsChanged");
       }
 
       return {
