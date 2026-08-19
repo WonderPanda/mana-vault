@@ -207,6 +207,7 @@ User's deck lists.
 | sort_order     | integer   | User-defined ordering                                       |
 | created_at     | integer   |                                                             |
 | updated_at     | integer   |                                                             |
+| deleted_at     | integer   | Soft-delete tombstone used by client replication            |
 
 **Indexes**: `user_id`, `user_id + status`, `user_id + format`
 
@@ -229,6 +230,7 @@ Cards in a deck (the deck list itself). Uses hybrid ID approach: oracle_id for t
 | sort_order            | integer             | Order in list                                        |
 | created_at            | integer             |                                                      |
 | updated_at            | integer             |                                                      |
+| deleted_at            | integer             | Soft-delete tombstone used by client replication     |
 
 **Indexes**: `deck_id`, `oracle_id`, `collection_card_id`, `deck_id + is_commander`
 
@@ -521,6 +523,8 @@ Price data for cards from various sources.
    - `collection_card` - marks card as deleted for sync purposes
    - `collection_card_location` - marks location assignment as deleted
    - `storage_container` - marks container as deleted
+   - `deck` - marks a deck as deleted while retaining a durable replication tombstone
+   - `deck_card` - marks cards from a deleted deck as deleted for replication
 
    When `deleted_at` is set, the sync pull handlers return the record with `_deleted: true`, allowing IndexedDB clients to remove the record. This is separate from the `status` field semantic - a card can be "traded" (status) but still exist for historical viewing, while `deleted_at` means "remove from client entirely."
 
