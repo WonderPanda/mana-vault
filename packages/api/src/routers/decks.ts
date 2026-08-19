@@ -8,7 +8,7 @@ import {
   deckCard,
   scryfallCard,
 } from "@mana-vault/db/schema/app";
-import { and, asc, eq, gt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
@@ -23,6 +23,11 @@ import {
   type DeckCardStreamEvent,
 } from "../publishers/deck-publisher";
 import { subscribeToSyncEvent } from "../publishers/sync-event-bus";
+import {
+  assertDeckCardParentsExist,
+  deleteDeckForReplication,
+} from "../services/deck-replication-lifecycle";
+import { deckReplicationLifecycleStore } from "../services/deck-replication-store";
 import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
 
@@ -175,8 +180,8 @@ export const decksRouter = {
         cardCount: sql<number>`coalesce(sum(${deckCard.quantity}), 0)`.as("card_count"),
       })
       .from(deck)
-      .leftJoin(deckCard, eq(deckCard.deckId, deck.id))
-      .where(eq(deck.userId, userId))
+      .leftJoin(deckCard, and(eq(deckCard.deckId, deck.id), isNull(deckCard.deletedAt)))
+      .where(and(eq(deck.userId, userId), isNull(deck.deletedAt)))
       .groupBy(deck.id)
       .orderBy(asc(deck.name));
 
@@ -207,8 +212,8 @@ export const decksRouter = {
           cardCount: sql<number>`coalesce(sum(${deckCard.quantity}), 0)`.as("card_count"),
         })
         .from(deck)
-        .leftJoin(deckCard, eq(deckCard.deckId, deck.id))
-        .where(and(eq(deck.id, input.id), eq(deck.userId, userId)))
+        .leftJoin(deckCard, and(eq(deckCard.deckId, deck.id), isNull(deckCard.deletedAt)))
+        .where(and(eq(deck.id, input.id), eq(deck.userId, userId), isNull(deck.deletedAt)))
         .groupBy(deck.id);
 
       if (!deckData) {
@@ -292,7 +297,7 @@ export const decksRouter = {
       const [existingDeck] = await db
         .select({ id: deck.id, format: deck.format })
         .from(deck)
-        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId)));
+        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId), isNull(deck.deletedAt)));
 
       if (!existingDeck) {
         throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
@@ -306,7 +311,7 @@ export const decksRouter = {
         const [existingCards] = await db
           .select({ count: sql<number>`count(*)` })
           .from(deckCard)
-          .where(eq(deckCard.deckId, input.deckId));
+          .where(and(eq(deckCard.deckId, input.deckId), isNull(deckCard.deletedAt)));
 
         shouldAutoAssignCommander = (existingCards?.count ?? 0) === 0;
       }
@@ -484,7 +489,7 @@ export const decksRouter = {
       const [existingDeck] = await db
         .select({ id: deck.id })
         .from(deck)
-        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId)));
+        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId), isNull(deck.deletedAt)));
 
       if (!existingDeck) {
         throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
@@ -518,7 +523,7 @@ export const decksRouter = {
         })
         .from(deckCard)
         .innerJoin(scryfallCard, eq(deckCard.preferredScryfallId, scryfallCard.id))
-        .where(eq(deckCard.deckId, input.deckId))
+        .where(and(eq(deckCard.deckId, input.deckId), isNull(deckCard.deletedAt)))
         .orderBy(asc(scryfallCard.name));
 
       return cards.map((card) => ({
@@ -553,47 +558,12 @@ export const decksRouter = {
     .input(z.object({ id: z.string() }))
     .handler(async ({ context, input }) => {
       const userId = context.session.user.id;
-
-      // Verify the deck exists and belongs to the user
-      const [existingDeck] = await db
-        .select({ id: deck.id, name: deck.name })
-        .from(deck)
-        .where(and(eq(deck.id, input.id), eq(deck.userId, userId)));
-
-      if (!existingDeck) {
-        throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
-      }
-
-      // Delete the deck (cascades to deck_card entries via foreign key)
-      await db.delete(deck).where(eq(deck.id, input.id));
-
-      // Publish deletion event to notify connected clients
-      // We create a minimal doc with _deleted: true for RxDB to handle the deletion
-      const now = Date.now();
-      await context.syncEvents.publish(userId, "deck", {
-        documents: [
-          {
-            id: input.id,
-            name: existingDeck.name,
-            format: "",
-            status: "",
-            archetype: null,
-            colorIdentity: null,
-            description: null,
-            isPublic: false,
-            sortOrder: 0,
-            createdAt: now,
-            updatedAt: now,
-            _deleted: true,
-          },
-        ],
-        checkpoint: {
-          id: input.id,
-          updatedAt: now,
-        },
-      });
-
-      return { success: true, deletedDeckName: existingDeck.name };
+      return deleteDeckForReplication(
+        deckReplicationLifecycleStore,
+        context.syncEvents,
+        userId,
+        input.id,
+      );
     }),
 
   /**
@@ -634,7 +604,7 @@ export const decksRouter = {
       const [existingDeck] = await db
         .select({ id: deck.id })
         .from(deck)
-        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId)));
+        .where(and(eq(deck.id, input.deckId), eq(deck.userId, userId), isNull(deck.deletedAt)));
 
       if (!existingDeck) {
         throw new ORPCError("NOT_FOUND", { message: "Deck not found" });
@@ -1031,17 +1001,14 @@ export const decksRouter = {
         const conflicts: DeckCardReplicationDoc[] = [];
         const changedDocs: DeckCardReplicationDoc[] = [];
 
+        await assertDeckCardParentsExist(
+          deckReplicationLifecycleStore,
+          userId,
+          rows.map(({ newDocumentState }) => newDocumentState.deckId),
+        );
+
         for (const row of rows) {
           const { newDocumentState, assumedMasterState } = row;
-
-          // Verify the deck belongs to the user
-          const [parentDeck] = await db
-            .select({ id: deck.id })
-            .from(deck)
-            .where(and(eq(deck.id, newDocumentState.deckId), eq(deck.userId, userId)))
-            .limit(1);
-
-          if (!parentDeck) continue;
 
           // Look up current master state
           const [currentRow] = await db
