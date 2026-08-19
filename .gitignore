@@ -47,6 +47,7 @@ coverage
 test-results/
 playwright-report/
 blob-report/
+apps/server/test/.dist/
 
 # Misc
 *.tgz
@@ -60,4 +61,4 @@ prd.env
 scryfall-data
 .data/
 
-.env.worktree   
+.env.worktree

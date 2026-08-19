@@ -1,8 +1,10 @@
 import type { AppRouterClient } from "@mana-vault/api/routers/index";
+import type { ClientRetryPluginContext } from "@orpc/client/plugins";
 
 import { env } from "@mana-vault/env/web";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { ClientRetryPlugin } from "@orpc/client/plugins";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,8 +27,11 @@ export const queryClient = new QueryClient({
   }),
 });
 
-export const link = new RPCLink({
+export type WebAppRouterClient = AppRouterClient<ClientRetryPluginContext>;
+
+export const link = new RPCLink<ClientRetryPluginContext>({
   url: `${env.VITE_SERVER_URL}/rpc`,
+  plugins: [new ClientRetryPlugin()],
   fetch(url, options) {
     return fetch(url, {
       ...options,
@@ -35,6 +40,6 @@ export const link = new RPCLink({
   },
 });
 
-export const client: AppRouterClient = createORPCClient(link);
+export const client: WebAppRouterClient = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);

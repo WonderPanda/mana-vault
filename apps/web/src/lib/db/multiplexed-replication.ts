@@ -10,7 +10,7 @@ import type {
   TagDoc,
 } from "./db";
 import type { ReplicationCheckpoint } from "./replication";
-import type { AppRouterClient } from "@mana-vault/api/routers/index";
+import type { WebAppRouterClient } from "@/utils/orpc";
 
 /**
  * Interface for the demultiplexed streams.
@@ -51,7 +51,7 @@ const entityTypeToStreamKey: Record<string, keyof DemultiplexedStreams> = {
  * @param client - The oRPC client instance
  * @returns Object containing Subject streams for each entity type
  */
-export function createDemultiplexedStreams(client: AppRouterClient): DemultiplexedStreams {
+export function createDemultiplexedStreams(client: WebAppRouterClient): DemultiplexedStreams {
   const streams: DemultiplexedStreams = {
     deck$: new Subject(),
     deckCard$: new Subject(),
@@ -62,11 +62,38 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
   };
 
   const allStreams = Object.values(streams);
+  const resyncAll = () => {
+    for (const stream of allStreams) {
+      stream.next("RESYNC");
+    }
+  };
 
   // Start consuming the multiplexed stream in the background
   (async () => {
     try {
-      const iterator = await client.sync.stream({});
+      const iterator = await client.sync.stream(
+        {},
+        {
+          context: {
+            retry: Number.POSITIVE_INFINITY,
+            onRetry: ({ attemptIndex, error }) => {
+              console.warn(
+                `[Multiplexed Stream] Connection lost; retrying (attempt ${attemptIndex + 1})`,
+                error,
+              );
+
+              return (isSuccess) => {
+                if (!isSuccess) return;
+
+                console.info(
+                  "[Multiplexed Stream] Reconnected; triggering checkpoint reconciliation",
+                );
+                resyncAll();
+              };
+            },
+          },
+        },
+      );
 
       for await (const multiplexedEvent of iterator) {
         const { type, event } = multiplexedEvent;
@@ -99,9 +126,7 @@ export function createDemultiplexedStreams(client: AppRouterClient): Demultiplex
         "[Multiplexed Stream] Connection error, triggering RESYNC on all streams:",
         error,
       );
-      for (const stream of allStreams) {
-        stream.next("RESYNC");
-      }
+      resyncAll();
     }
   })();
 

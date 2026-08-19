@@ -9,7 +9,9 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "test": "bun test ./src"
+  },
   "dependencies": {
     "@mana-vault/auth": "workspace:*",
     "@mana-vault/db": "workspace:*",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@mana-vault/config": "workspace:*",
+    "@types/bun": "^1.3.12",
     "hono": "catalog:",
     "typescript": "catalog:"
   }

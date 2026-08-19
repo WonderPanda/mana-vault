@@ -1,5 +1,3 @@
-import { EventPublisher } from "@orpc/server";
-
 import type {
   StorageContainerReplicationDoc,
   CollectionCardReplicationDoc,
@@ -23,10 +21,6 @@ export interface StorageContainerStreamEvent {
   documents: StorageContainerReplicationDoc[];
   checkpoint: ReplicationCheckpoint | null;
 }
-
-export const storageContainerPublisher = new EventPublisher<
-  Record<string, StorageContainerStreamEvent>
->();
 
 export function toStorageContainerReplicationDoc(
   doc: {
@@ -58,10 +52,6 @@ export type CollectionCardStreamEvent =
       checkpoint: ReplicationCheckpoint | null;
     }
   | "RESYNC";
-
-export const collectionCardPublisher = new EventPublisher<
-  Record<string, CollectionCardStreamEvent>
->();
 
 export function toCollectionCardReplicationDoc(
   doc: {
@@ -98,10 +88,6 @@ export type CollectionCardLocationStreamEvent =
       checkpoint: ReplicationCheckpoint | null;
     }
   | "RESYNC";
-
-export const collectionCardLocationPublisher = new EventPublisher<
-  Record<string, CollectionCardLocationStreamEvent>
->();
 
 export function toCollectionCardLocationReplicationDoc(
   doc: {

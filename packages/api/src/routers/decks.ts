@@ -15,12 +15,6 @@ import { protectedProcedure } from "../index";
 import { parseManaBoxCSV } from "../parsers/manabox";
 import { parseMoxfieldText } from "../parsers/moxfield";
 import {
-  collectionCardPublisher,
-  collectionCardLocationPublisher,
-} from "../publishers/collection-publisher";
-import {
-  deckPublisher,
-  deckCardPublisher,
   toDeckReplicationDoc,
   toDeckCardReplicationDoc,
   type DeckReplicationDoc,
@@ -28,6 +22,7 @@ import {
   type DeckStreamEvent,
   type DeckCardStreamEvent,
 } from "../publishers/deck-publisher";
+import { subscribeToSyncEvent } from "../publishers/sync-event-bus";
 import { ensureScryfallCard } from "../utils/scryfall-fetch";
 import { lookupScryfallCard } from "../utils/scryfall-lookup";
 
@@ -256,7 +251,7 @@ export const decksRouter = {
       // Publish event to notify connected clients
       if (newDeck) {
         const replicationDoc = toDeckReplicationDoc(newDeck);
-        deckPublisher.publish(userId, {
+        await context.syncEvents.publish(userId, "deck", {
           documents: [replicationDoc],
           checkpoint: {
             id: replicationDoc.id,
@@ -453,14 +448,14 @@ export const decksRouter = {
       // This is more efficient than publishing each card individually for bulk imports
       // Note: Scryfall card sync is triggered client-side when deck cards change
       if (importedCount > 0) {
-        deckCardPublisher.publish(userId, "RESYNC");
+        await context.syncEvents.publish(userId, "deckCard", "RESYNC");
       }
 
       // Optionally create collection cards to mark ownership
       if (input.addToCollection && successfulCards.length > 0) {
         await bulkCreateCollectionCards(db, userId, input.deckId, successfulCards);
-        collectionCardPublisher.publish(userId, "RESYNC");
-        collectionCardLocationPublisher.publish(userId, "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCard", "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCardLocation", "RESYNC");
       }
 
       return {
@@ -575,7 +570,7 @@ export const decksRouter = {
       // Publish deletion event to notify connected clients
       // We create a minimal doc with _deleted: true for RxDB to handle the deletion
       const now = Date.now();
-      deckPublisher.publish(userId, {
+      await context.syncEvents.publish(userId, "deck", {
         documents: [
           {
             id: input.id,
@@ -704,14 +699,14 @@ export const decksRouter = {
       // Emit RESYNC to notify connected clients to re-sync deck cards
       // Note: Scryfall card sync is triggered client-side when deck cards change
       if (addedCount > 0) {
-        deckCardPublisher.publish(userId, "RESYNC");
+        await context.syncEvents.publish(userId, "deckCard", "RESYNC");
       }
 
       // Optionally create collection cards to mark ownership
       if (input.addToCollection && successfulCards.length > 0) {
         await bulkCreateCollectionCards(db, userId, input.deckId, successfulCards);
-        collectionCardPublisher.publish(userId, "RESYNC");
-        collectionCardLocationPublisher.publish(userId, "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCard", "RESYNC");
+        await context.syncEvents.publish(userId, "collectionCardLocation", "RESYNC");
       }
 
       return {
@@ -860,7 +855,7 @@ export const decksRouter = {
             documents: changedDocs,
             checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
           };
-          await deckPublisher.publish(userId, event);
+          await context.syncEvents.publish(userId, "deck", event);
         }
 
         return { conflicts };
@@ -969,11 +964,13 @@ export const decksRouter = {
      */
     stream: protectedProcedure
       .output(eventIterator(z.custom<DeckStreamEvent>()))
-      .handler(async function* ({ context, signal }) {
+      .handler(async function* ({ context, signal, lastEventId }) {
         const userId = context.session.user.id;
 
-        // Subscribe to deck events for this user
-        for await (const event of deckPublisher.subscribe(userId, { signal })) {
+        for await (const event of subscribeToSyncEvent(context.syncEvents, userId, "deck", {
+          signal,
+          lastEventId,
+        })) {
           yield event;
         }
       }),
@@ -1174,7 +1171,7 @@ export const decksRouter = {
         // Publish changed docs to SSE stream for other clients
         if (changedDocs.length > 0) {
           const lastDoc = changedDocs[changedDocs.length - 1]!;
-          deckCardPublisher.publish(userId, {
+          await context.syncEvents.publish(userId, "deckCard", {
             documents: changedDocs,
             checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
           });
@@ -1292,11 +1289,13 @@ export const decksRouter = {
      */
     stream: protectedProcedure
       .output(eventIterator(z.custom<DeckCardStreamEvent>()))
-      .handler(async function* ({ context, signal }) {
+      .handler(async function* ({ context, signal, lastEventId }) {
         const userId = context.session.user.id;
 
-        // Subscribe to deck card events for this user
-        for await (const event of deckCardPublisher.subscribe(userId, { signal })) {
+        for await (const event of subscribeToSyncEvent(context.syncEvents, userId, "deckCard", {
+          signal,
+          lastEventId,
+        })) {
           yield event;
         }
       }),

@@ -1,5 +1,3 @@
-import { EventPublisher } from "@orpc/server";
-
 import type { ScryfallCardReplicationDoc, ReplicationCheckpoint } from "./replication-types";
 import { toReplicationDoc } from "./to-replication-doc";
 
@@ -12,8 +10,6 @@ export type ScryfallCardStreamEvent =
       checkpoint: ReplicationCheckpoint | null;
     }
   | "RESYNC";
-
-export const scryfallCardPublisher = new EventPublisher<Record<string, ScryfallCardStreamEvent>>();
 
 export function toScryfallCardReplicationDoc(
   doc: {

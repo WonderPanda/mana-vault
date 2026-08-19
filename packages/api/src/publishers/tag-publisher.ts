@@ -1,5 +1,3 @@
-import { EventPublisher } from "@orpc/server";
-
 import type { TagReplicationDoc, ReplicationCheckpoint } from "./replication-types";
 import { toReplicationDoc } from "./to-replication-doc";
 
@@ -10,8 +8,6 @@ export type TagStreamEvent = {
   documents: TagReplicationDoc[];
   checkpoint: ReplicationCheckpoint | null;
 };
-
-export const tagPublisher = new EventPublisher<Record<string, TagStreamEvent>>();
 
 export function toTagReplicationDoc(
   doc: {

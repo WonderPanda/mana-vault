@@ -2,17 +2,7 @@ import { eventIterator } from "@orpc/server";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
-import { deckPublisher, deckCardPublisher } from "../publishers/deck-publisher";
-import {
-  storageContainerPublisher,
-  collectionCardPublisher,
-  collectionCardLocationPublisher,
-} from "../publishers/collection-publisher";
-import { tagPublisher } from "../publishers/tag-publisher";
-import {
-  mergeAsyncIterables,
-  type MultiplexedStreamEvent,
-} from "../publishers/multiplexed-publisher";
+import type { MultiplexedStreamEvent } from "../publishers/sync-event-bus";
 
 /**
  * Schema for multiplexed stream events.
@@ -31,8 +21,7 @@ const multiplexedEventSchema = z.custom<MultiplexedStreamEvent>();
 export const syncRouter = {
   /**
    * Multiplexed stream endpoint for live replication.
-   * Combines deck, deckCard, storageContainer, collectionCard, and collectionCardLocation
-   * streams into a single SSE connection.
+   * Receives the user's multiplexed events from a shared Durable Object channel.
    *
    * Each event is tagged with its entity type for client-side routing.
    *
@@ -40,23 +29,11 @@ export const syncRouter = {
    */
   stream: protectedProcedure
     .output(eventIterator(multiplexedEventSchema))
-    .handler(async function* ({ context, signal }) {
+    .handler(async function* ({ context, signal, lastEventId }) {
       const userId = context.session.user.id;
 
-      // Create a map of entity type to publisher subscription
-      // Use explicit type to handle heterogeneous event types
-      const publishers = new Map<string, AsyncIterable<unknown>>([
-        ["deck", deckPublisher.subscribe(userId, { signal })],
-        ["deckCard", deckCardPublisher.subscribe(userId, { signal })],
-        ["storageContainer", storageContainerPublisher.subscribe(userId, { signal })],
-        ["collectionCard", collectionCardPublisher.subscribe(userId, { signal })],
-        ["collectionCardLocation", collectionCardLocationPublisher.subscribe(userId, { signal })],
-        ["tag", tagPublisher.subscribe(userId, { signal })],
-      ]);
-
-      // Merge all publisher streams and yield typed events
-      for await (const { key, value } of mergeAsyncIterables(publishers)) {
-        yield { type: key, event: value } as MultiplexedStreamEvent;
+      for await (const event of context.syncEvents.subscribe(userId, { signal, lastEventId })) {
+        yield event;
       }
     }),
 };

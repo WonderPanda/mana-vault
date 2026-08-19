@@ -16,11 +16,13 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 import { handleScryfallImport, handleScryfallInsertBatch } from "./queue-handlers/scryfall-import";
+import { createDurableSyncEventBus } from "./sync-events";
 
 /** Union type for all queue messages this worker handles */
 type QueueMessage = ScryfallImportMessage | ScryfallInsertBatchMessage;
 
 const app = new Hono();
+const syncEvents = createDurableSyncEventBus(env.SYNC_PUBLISHER_DO);
 
 app.use(logger());
 app.use(
@@ -57,7 +59,7 @@ export const rpcHandler = new RPCHandler(appRouter, {
 });
 
 app.use("/*", async (c, next) => {
-  const context = await createContext({ context: c });
+  const context = await createContext({ context: c, syncEvents });
 
   const rpcResult = await rpcHandler.handle(c.req.raw, {
     prefix: "/rpc",
@@ -121,3 +123,5 @@ export default {
     }
   },
 };
+
+export { SyncPublisherDurableObject } from "./sync-events";

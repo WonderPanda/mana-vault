@@ -1,7 +1,7 @@
 import alchemy from "alchemy";
 import { Vite } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
-import { D1Database, Queue, R2Bucket } from "alchemy/cloudflare";
+import { D1Database, DurableObjectNamespace, Queue, R2Bucket } from "alchemy/cloudflare";
 import { CloudflareStateStore } from "alchemy/state";
 import { z } from "zod";
 
@@ -46,6 +46,11 @@ const scryfallDataBucket = await R2Bucket("scryfall-data", {
   name: "scryfall-data",
 });
 
+const syncPublisher = DurableObjectNamespace("sync-publisher", {
+  className: "SyncPublisherDurableObject",
+  sqlite: true,
+});
+
 // Stage 1: Parse queue - downloads/reads bulk data and dispatches batches
 export const scryfallImportQueue = await Queue<ScryfallImportMessage>("scryfall-import-queue");
 
@@ -66,11 +71,13 @@ export const server = await Worker("server", {
   cwd: "../../apps/server",
   entrypoint: "src/index.ts",
   compatibility: "node",
+  compatibilityFlags: ["enable_request_signal"],
   limits: {
     cpu_ms: 300_000,
   },
   bindings: {
     DB: db,
+    SYNC_PUBLISHER_DO: syncPublisher,
     CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
     BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
     BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,

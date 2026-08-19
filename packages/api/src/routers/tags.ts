@@ -5,11 +5,8 @@ import { and, asc, eq, gt, or } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure } from "../index";
-import {
-  tagPublisher,
-  toTagReplicationDoc,
-  type TagStreamEvent,
-} from "../publishers/tag-publisher";
+import { subscribeToSyncEvent } from "../publishers/sync-event-bus";
+import { toTagReplicationDoc, type TagStreamEvent } from "../publishers/tag-publisher";
 
 const checkpointSchema = z
   .object({
@@ -118,7 +115,7 @@ export const tagsRouter = {
             documents: changedDocs,
             checkpoint: { id: lastDoc.id, updatedAt: lastDoc.updatedAt },
           };
-          await tagPublisher.publish(userId, event);
+          await context.syncEvents.publish(userId, "tag", event);
         }
 
         return { conflicts };
@@ -203,10 +200,13 @@ export const tagsRouter = {
 
     stream: protectedProcedure
       .output(eventIterator(z.custom<TagStreamEvent>()))
-      .handler(async function* ({ context, signal }) {
+      .handler(async function* ({ context, signal, lastEventId }) {
         const userId = context.session.user.id;
 
-        for await (const event of tagPublisher.subscribe(userId, { signal })) {
+        for await (const event of subscribeToSyncEvent(context.syncEvents, userId, "tag", {
+          signal,
+          lastEventId,
+        })) {
           yield event;
         }
       }),

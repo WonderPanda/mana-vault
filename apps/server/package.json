@@ -5,13 +5,15 @@
   "scripts": {
     "build": "tsdown",
     "check-types": "tsc -b",
-    "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server"
+    "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
+    "test": "vitest run --config vitest.config.ts --max-workers=1 --no-isolate"
   },
   "dependencies": {
     "@mana-vault/api": "workspace:*",
     "@mana-vault/auth": "workspace:*",
     "@mana-vault/db": "workspace:*",
     "@mana-vault/env": "workspace:*",
+    "@orpc/experimental-publisher-durable-object": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
@@ -23,12 +25,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@mana-vault/config": "workspace:*",
     "@types/node": "^22.13.14",
     "alchemy": "catalog:",
     "tsdown": "^0.16.5",
     "typescript": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "^4.54.0"
   }
 }
