@@ -14,7 +14,10 @@ import type {
   ManaVaultDatabase,
 } from "./db";
 import type { WebAppRouterClient } from "@/utils/orpc";
-import { createDemultiplexedStreams } from "./multiplexed-replication";
+import {
+  createDemultiplexedStreams,
+  type MultiplexedStreamCallbacks,
+} from "./multiplexed-replication";
 
 /**
  * Checkpoint type for replication.
@@ -130,8 +133,9 @@ export interface MultiplexedReplicationStates {
 export function setupReplicationsWithMultiplexedStream(
   db: ManaVaultDatabase,
   client: WebAppRouterClient,
+  callbacks?: MultiplexedStreamCallbacks,
 ): MultiplexedReplicationStates {
-  const streams = createDemultiplexedStreams(client);
+  const streams = createDemultiplexedStreams(client, callbacks);
 
   const deckReplicationState = createReplication<DeckDoc>({
     collection: db.decks,

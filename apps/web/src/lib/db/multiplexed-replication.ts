@@ -1,6 +1,7 @@
 import { Subject } from "rxjs";
 
 import type { RxReplicationPullStreamItem } from "rxdb";
+import type { VirtualListChangeEvent } from "@mana-vault/api/publishers/virtual-list-publisher";
 import type {
   DeckDoc,
   DeckCardDoc,
@@ -30,6 +31,10 @@ export interface DemultiplexedStreams {
   tag$: Subject<RxReplicationPullStreamItem<TagDoc, ReplicationCheckpoint>>;
 }
 
+export interface MultiplexedStreamCallbacks {
+  invalidateListQueries?(event?: VirtualListChangeEvent): Promise<void>;
+}
+
 // Maps entity type strings from the multiplexed stream to DemultiplexedStreams keys
 const entityTypeToStreamKey: Record<string, keyof DemultiplexedStreams> = {
   deck: "deck$",
@@ -51,7 +56,10 @@ const entityTypeToStreamKey: Record<string, keyof DemultiplexedStreams> = {
  * @param client - The oRPC client instance
  * @returns Object containing Subject streams for each entity type
  */
-export function createDemultiplexedStreams(client: WebAppRouterClient): DemultiplexedStreams {
+export function createDemultiplexedStreams(
+  client: WebAppRouterClient,
+  callbacks: MultiplexedStreamCallbacks = {},
+): DemultiplexedStreams {
   const streams: DemultiplexedStreams = {
     deck$: new Subject(),
     deckCard$: new Subject(),
@@ -66,6 +74,12 @@ export function createDemultiplexedStreams(client: WebAppRouterClient): Demultip
     for (const stream of allStreams) {
       stream.next("RESYNC");
     }
+  };
+
+  const invalidateListQueries = (event?: VirtualListChangeEvent) => {
+    void callbacks.invalidateListQueries?.(event).catch((error: unknown) => {
+      console.error("[Multiplexed Stream] Failed to invalidate list queries:", error);
+    });
   };
 
   // Start consuming the multiplexed stream in the background
@@ -89,6 +103,7 @@ export function createDemultiplexedStreams(client: WebAppRouterClient): Demultip
                   "[Multiplexed Stream] Reconnected; triggering checkpoint reconciliation",
                 );
                 resyncAll();
+                invalidateListQueries();
               };
             },
           },
@@ -97,6 +112,12 @@ export function createDemultiplexedStreams(client: WebAppRouterClient): Demultip
 
       for await (const multiplexedEvent of iterator) {
         const { type, event } = multiplexedEvent;
+
+        if (type === "virtualList") {
+          invalidateListQueries(event);
+          continue;
+        }
+
         const streamKey = entityTypeToStreamKey[type];
         if (!streamKey) continue;
 
@@ -127,6 +148,7 @@ export function createDemultiplexedStreams(client: WebAppRouterClient): Demultip
         error,
       );
       resyncAll();
+      invalidateListQueries();
     }
   })();
 

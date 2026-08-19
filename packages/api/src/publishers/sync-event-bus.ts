@@ -7,6 +7,7 @@ import type {
   StorageContainerStreamEvent,
 } from "./collection-publisher";
 import type { TagStreamEvent } from "./tag-publisher";
+import type { VirtualListChangeEvent } from "./virtual-list-publisher";
 
 export interface SyncEventMap {
   deck: DeckStreamEvent;
@@ -15,6 +16,7 @@ export interface SyncEventMap {
   collectionCard: CollectionCardStreamEvent;
   collectionCardLocation: CollectionCardLocationStreamEvent;
   tag: TagStreamEvent;
+  virtualList: VirtualListChangeEvent;
 }
 
 export type SyncEntityType = keyof SyncEventMap;

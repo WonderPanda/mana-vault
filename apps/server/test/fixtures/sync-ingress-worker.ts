@@ -67,6 +67,15 @@ export default {
       });
     }
 
+    if (request.method === "POST" && url.pathname === "/publish-virtual-list") {
+      const event = await request.json<SyncEventMap["virtualList"]>();
+      await eventBus.publish(userId, "virtualList", event);
+      return new Response(null, {
+        status: 204,
+        headers: { "x-test-worker-instance": env.TEST_WORKER_NAME },
+      });
+    }
+
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<TestEnv>;
